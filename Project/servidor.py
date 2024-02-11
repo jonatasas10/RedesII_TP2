@@ -4,7 +4,8 @@ import threading
 from dotenv import load_dotenv
 
 load_dotenv()
-files_path = os.environ.get("SERVER_FILES_PATH")
+dir = os.path.dirname(__file__)
+files_path = os.path.join(dir, os.environ.get("SERVER_FILES_PATH"))
 HOST = os.environ.get("SERVER_HOST")
 PORTA_TCP = int(os.environ.get("TCP_PORT"))
 PORTA_UDP = int(os.environ.get("UDP_PORT"))
@@ -62,7 +63,7 @@ servidor_socket.bind((HOST, PORTA_TCP))
 servidor_socket.listen()
 
 print(f"Servidor ouvindo em {HOST}:{PORTA_TCP}")
-
+print(os.getcwd())
 while True:
     # Aguarda por conexões
     conexao, endereco_cliente = servidor_socket.accept()
