@@ -4,7 +4,8 @@ import threading
 from dotenv import load_dotenv
 
 load_dotenv()
-files_path = os.environ.get("SERVER_FILES_PATH")
+dir = os.path.dirname(__file__)
+files_path = os.path.join(dir, os.environ.get("SERVER_FILES_PATH"))
 HOST = os.environ.get("SERVER_HOST")
 PORTA_TCP = int(os.environ.get("TCP_PORT"))
 PORTA_UDP = int(os.environ.get("UDP_PORT"))
@@ -17,9 +18,15 @@ def listar_arquivos():
 def enviar_arquivo(nome_arquivo, endereco_cliente, porta_cliente):
     try:
         with open(os.path.join(files_path, nome_arquivo), 'rb') as arquivo:
-            dados = arquivo.read()
             cliente_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            cliente_udp_socket.sendto(dados, (endereco_cliente, porta_cliente))
+
+            # TODO: Adicionar metodo de envio aqui
+            while True:
+                dados = arquivo.read(1024)
+                if not dados:
+                    break
+                cliente_udp_socket.sendto(dados, (endereco_cliente, porta_cliente))
+                
             cliente_udp_socket.close()
             print(f"Enviado o arquivo {nome_arquivo} para {endereco_cliente}")
     except FileNotFoundError:
@@ -62,7 +69,7 @@ servidor_socket.bind((HOST, PORTA_TCP))
 servidor_socket.listen()
 
 print(f"Servidor ouvindo em {HOST}:{PORTA_TCP}")
-
+print(os.getcwd())
 while True:
     # Aguarda por conexões
     conexao, endereco_cliente = servidor_socket.accept()
