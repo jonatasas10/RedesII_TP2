@@ -18,9 +18,15 @@ def listar_arquivos():
 def enviar_arquivo(nome_arquivo, endereco_cliente, porta_cliente):
     try:
         with open(os.path.join(files_path, nome_arquivo), 'rb') as arquivo:
-            dados = arquivo.read()
             cliente_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            cliente_udp_socket.sendto(dados, (endereco_cliente, porta_cliente))
+
+            # TODO: Adicionar metodo de envio aqui
+            while True:
+                dados = arquivo.read(1024)
+                if not dados:
+                    break
+                cliente_udp_socket.sendto(dados, (endereco_cliente, porta_cliente))
+                
             cliente_udp_socket.close()
             print(f"Enviado o arquivo {nome_arquivo} para {endereco_cliente}")
     except FileNotFoundError:
