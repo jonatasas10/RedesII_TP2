@@ -1,5 +1,7 @@
+import random
 import socket
 import os
+import time
 from dotenv import load_dotenv
 
 
@@ -11,7 +13,7 @@ PORTA_TCP = int(os.environ.get("TCP_PORT"))
 PORTA_UDP = int(os.environ.get("UDP_PORT"))
 
 
-def receber_arquivo(nome_arquivo):
+def receber_arquivo(nome_arquivo, wa):
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     udp_socket.bind(('0.0.0.0', PORTA_UDP))
     dados, endereco_servidor = udp_socket.recvfrom(5242880)
@@ -22,6 +24,34 @@ def receber_arquivo(nome_arquivo):
         arquivo.close ()
         udp_socket.close()
 
+def receber_arquivo(nome_arquivo):
+    udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    udp_socket.bind(('0.0.0.0', PORTA_UDP))
+    udp_socket.settimeout(1)
+    expected_sequence_number = 0
+
+    with open(nome_arquivo, 'wb') as arquivo:
+        while True:
+            try:
+                packet, address = udp_socket.recvfrom(1024*8)
+                sequence_number_bytes = packet[:4]  # Extrai apenas os 4 primeiros bytes
+                sequence_number = int.from_bytes(sequence_number_bytes, byteorder='big')
+                
+                print(f"recebido {sequence_number} {expected_sequence_number}")
+                if sequence_number == expected_sequence_number:
+                    arquivo.write(packet[4:])
+                    ack = str(sequence_number+1)
+                    udp_socket.sendto(ack.encode(), address)
+                    expected_sequence_number += 1
+            except socket.timeout:
+                print("Timeout. Conexão encerrada.")
+                ack = str(-1)
+                udp_socket.sendto(ack.encode(), address)
+                expected_sequence_number += 1
+                break
+
+    udp_socket.close()
+    print(f"Arquivo {nome_arquivo} recebido com sucesso.")
 
 # Função para lidar com as mensagens do servidor
 def lidar_com_mensagens(cliente_socket):
@@ -32,10 +62,18 @@ def lidar_com_mensagens(cliente_socket):
     except ConnectionResetError:
         print("Conexão com o servidor foi encerrada.")
 
+def simulate_network_delay():
+    random_delay = random.uniform(0, 0.5)
+    time.sleep(random_delay)
+
+
 # Criação do socket TCP do cliente
 cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 cliente_socket.connect((HOST, PORTA_TCP))
 
+#Dummy code
+data = b"Hello, server!"
+cliente_socket.sendall(data)
 
 # Recebe a lista de arquivos do servidor
 arquivos_disponiveis = cliente_socket.recv(4096).decode()
@@ -51,10 +89,10 @@ try:
 
             # Recebe a lista de arquivos do servidor # aqui estava dando erro logo aops recebimento, passou para cima.
             # arquivos_disponiveis = cliente_socket.recv(4096).decode()  # o recv() nao precisa ser deste tamanho, pode ser menor '4096'.
-        
+            
             print("Arquivos disponíveis para download:")
             print(arquivos_disponiveis)
-        
+
             # Solicitação do cliente para download usando UDP
             nome_arquivo = input("Digite o nome do arquivo que deseja baixar (ou 'sair' para encerrar): ")
 
