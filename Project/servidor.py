@@ -22,7 +22,7 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, porta_cliente):
     try:
         with open(os.path.join(files_path, nome_arquivo), 'rb') as arquivo:
             cliente_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            socket.setdefaulttimeout(1)
+            socket.setdefaulttimeout(5)
 
             initial_window_size = 4  # Define o tamanho da janela
             window_start = 0  # Começa a janela em 0
@@ -30,11 +30,6 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, porta_cliente):
             sending_retry = 0
 
             while True:
-
-                if window_start >= os.path.getsize(os.path.join(files_path, nome_arquivo)):
-                    break  # Todos os pacotes foram enviados
-
-                    
                 # Calcula o restante de bytes a serem enviados
                 remaining_bytes = os.path.getsize(os.path.join(files_path, nome_arquivo)) - window_start
                 print(f"Remaining bytes: {remaining_bytes}")
@@ -74,19 +69,22 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, porta_cliente):
                         
                     except socket.timeout:
                         print(f"Timeout aconteceu. Reenviando os pacotes {sending_retry}.")
-                        sending_retry += 1
+                        """ sending_retry += 1
                         if sending_retry == 3:
-                            cliente_udp_socket.close()
+                            cliente_udp_socket.close() """
                         break  # Reenvia os pacotes
                     
 
-                    if initial_window_size < threshold:
+                    """ if initial_window_size < threshold:
                         initial_window_size *= 2  # Slow start
                     else:
-                        initial_window_size += 1  # Congestion avoidance
+                        initial_window_size += 1  # Congestion avoidance """
+                    initial_window_size += 1 
 
                 if final_ack_received:
                     break
+                if window_start >= os.path.getsize(os.path.join(files_path, nome_arquivo)):
+                    break  # Todos os pacotes foram enviados
 
             cliente_udp_socket.close()
             print(f"Enviado o arquivo {nome_arquivo} para {endereco_cliente}")

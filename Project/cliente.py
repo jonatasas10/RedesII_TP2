@@ -27,7 +27,7 @@ def receber_arquivo(nome_arquivo, wa):
 def receber_arquivo(nome_arquivo):
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     udp_socket.bind(('0.0.0.0', PORTA_UDP))
-    udp_socket.settimeout(1)
+    udp_socket.settimeout(5)
     expected_sequence_number = 0
 
     with open(nome_arquivo, 'wb') as arquivo:
@@ -45,13 +45,13 @@ def receber_arquivo(nome_arquivo):
                     expected_sequence_number += 1
             except socket.timeout:
                 print("Timeout. Conexão encerrada.")
-                ack = str(-1)
-                udp_socket.sendto(ack.encode(), address)
-                expected_sequence_number += 1
                 break
 
-    udp_socket.close()
     print(f"Arquivo {nome_arquivo} recebido com sucesso.")
+    ack = str(-1)
+    udp_socket.sendto(ack.encode(), address)
+
+    udp_socket.close()
 
 # Função para lidar com as mensagens do servidor
 def lidar_com_mensagens(cliente_socket):
