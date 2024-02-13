@@ -9,7 +9,7 @@ load_dotenv()
 # Configurações do servidor
 dir = os.path.dirname(__file__)
 files_path = os.path.join(dir, os.environ.get("SERVER_FILES_PATH"))
-HOST = os.environ.get("SERVER_HOST")
+HOST = os.environ.get("SERVER_HOST_")
 PORTA_TCP = int(os.environ.get("TCP_PORT"))
 PORTA_UDP = int(os.environ.get("UDP_PORT"))
 
@@ -42,6 +42,7 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, porta_cliente):
                 
                 window_end = window_start + window_size
                 print(f"Window start: {window_start}, Window end: {window_end}, Window size: {window_size}")
+                sent_packets = []
                 for i in range(window_start, window_end):
 
                     arquivo.seek(i * 1024)  # Move o ponteiro do arquivo para o byte correspondente
@@ -51,6 +52,7 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, porta_cliente):
 
                     #print(f"Enviando payload {i}")
                     cliente_udp_socket.sendto(packet, (endereco_cliente, porta_cliente))
+                    sent_packets.append(i)
 
                 ack_received = False
                 final_ack_received = False
@@ -69,17 +71,23 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, porta_cliente):
                         
                     except socket.timeout:
                         print(f"Timeout aconteceu. Reenviando os pacotes {sending_retry}.")
-                        """ sending_retry += 1
-                        if sending_retry == 3:
-                            cliente_udp_socket.close() """
+
+                        for seq_num in sent_packets:
+                            arquivo.seek(seq_num * 1024)
+                            packet = bytearray()
+                            packet.extend(seq_num.to_bytes(4, byteorder='big'))
+                            packet.extend(arquivo.read(1024))
+                            print(f"Retransmitindo payload {seq_num}")
+                            cliente_udp_socket.sendto(packet, (endereco_cliente, porta_cliente))
+
                         break  # Reenvia os pacotes
                     
 
-                    """ if initial_window_size < threshold:
+                    if initial_window_size < threshold:
                         initial_window_size *= 2  # Slow start
                     else:
-                        initial_window_size += 1  # Congestion avoidance """
-                    initial_window_size += 1 
+                        initial_window_size += 1  # Congestion avoidance 
+                    #initial_window_size += 1 
 
                 if final_ack_received:
                     break
