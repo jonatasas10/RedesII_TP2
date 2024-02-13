@@ -8,7 +8,7 @@ from flask import Flask, jsonify, render_template, request
 load_dotenv()
 
 # Configurações do cliente
-HOST = os.environ.get("SERVER_HOST")
+HOST = os.environ.get("SERVER_HOST_")
 PORTA_TCP = int(os.environ.get("TCP_PORT"))
 PORTA_UDP = int(os.environ.get("UDP_PORT"))
 
@@ -57,9 +57,6 @@ def get_file_list():
     cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     cliente_socket.connect((HOST, PORTA_TCP))
 
-    #Dummy code
-    data = b"Hello, server!"
-    cliente_socket.sendall(data)
 
     # Recebe a lista de arquivos do servidor
     arquivos_disponiveis = cliente_socket.recv(4096).decode().split("\n")
@@ -71,9 +68,6 @@ def download():
     file_name = request.form['file_name']
     cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     cliente_socket.connect((HOST, PORTA_TCP))
-
-    data = b"Hello, server!"
-    cliente_socket.sendall(data)
 
     # Recebe a lista de arquivos do servidor
     arquivos_disponiveis = cliente_socket.recv(4096).decode().split("\n")

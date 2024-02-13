@@ -71,14 +71,15 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, porta_cliente):
                         
                     except socket.timeout:
                         print(f"Timeout aconteceu. Reenviando os pacotes {sending_retry}.")
-
-                        for seq_num in sent_packets:
+                        sending_retry += 1
+                        
+                        """ for seq_num in sent_packets:
                             arquivo.seek(seq_num * 1024)
                             packet = bytearray()
                             packet.extend(seq_num.to_bytes(4, byteorder='big'))
                             packet.extend(arquivo.read(1024))
                             print(f"Retransmitindo payload {seq_num}")
-                            cliente_udp_socket.sendto(packet, (endereco_cliente, porta_cliente))
+                            cliente_udp_socket.sendto(packet, (endereco_cliente, porta_cliente)) """
 
                         break  # Reenvia os pacotes
                     
@@ -103,7 +104,7 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, porta_cliente):
 # Função para lidar com as solicitações de um cliente
 def lidar_com_cliente(conexao, endereco_cliente):
     try:
-        get_network_status(conexao, endereco_cliente)
+        #get_network_status(conexao, endereco_cliente)
         # Envia a lista de arquivos para o cliente
         arquivos_disponiveis = listar_arquivos()
         mensagem_inicial = "\n".join(arquivos_disponiveis)
@@ -166,6 +167,7 @@ try:
         # Cria uma thread para lidar com o cliente
         cliente_thread = threading.Thread(target=lidar_com_cliente, args=(conexao, endereco_cliente))
         cliente_thread.start()
+        cliente_thread.join()
 
 except KeyboardInterrupt:
     pass
