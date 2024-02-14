@@ -1,33 +1,44 @@
-import socket, select, traceback
+import socket, select, traceback, queue, timer
 import os
 import threading
 import pickle
 from dotenv import load_dotenv
-from time import time
+from numpy import random
+
+from time import time, sleep
 import PyPDF2
 load_dotenv()
+
 dir = os.path.dirname(__file__)
 files_path = os.path.join(dir, os.environ.get("SERVER_FILES_PATH"))
 HOST = os.environ.get("SERVER_HOST")
 PORTA_TCP = int(os.environ.get("TCP_PORT"))
 PORTA_UDP = int(os.environ.get("UDP_PORT"))
 
-ACK = 0
+#ACK = 0
 
 # Configurações do servidor
 """ HOST = '127.0.0.1'
 PORTA_TCP = 12345
 PORTA_UDP = 54321 """
 
-def receber_ack(servidor_socket):
-    global ACK
+def random_delay():
+    random_delay = random.uniform(0, 0.2)
+    sleep(random_delay)
+
+
+def receber_ack(servidor_socket, resultado):
     servidor_socket.setblocking(False)
     ler_socket, _, _ = select.select([servidor_socket], [], [], 0.0)
+    random_delay()
     for s in ler_socket:
         if s is servidor_socket:
             dados, _ = servidor_socket.recvfrom(100)
             ACK = int(dados.decode('utf8'))
             print("ACK recebido", ACK)
+            resultado.put(ACK)
+        
+    resultado.put("ACK não recebido")
 
 # Função para listar os arquivos no diretório do servidor
 def listar_arquivos():
@@ -37,43 +48,86 @@ def listar_arquivos():
 def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
     try:
         with open(os.path.join(files_path, nome_arquivo), 'rb') as arquivo:
-
-
-            global ACK
+            ACK = None
             sequencia_base = 0
             proximo_numero_sequencia = 0
             arquivo.seek(sequencia_base)
             N = 4
             timeout = []
-            tempo = []
+            tempo_chegada = [0 for x in range(N)]
+            tempo = [0 for x in range(N)]
+            initial_window_size = 4  # Define o tamanho da janela
+            window_start = 0  # Começa a janela em 0
+            threshold = 8  # Define o limite de reenvio do payload
+            sending_retry = 0
 
             while True:
-                dados = arquivo.read(1024//10)
-
-                if not dados and ACK == proximo_numero_sequencia -1:
-                    print("Fim do arquivo, ACK =", ACK)
-
+                remaining_bytes = os.path.getsize(os.path.join(files_path, nome_arquivo)) - window_start
+                #print(f"Remaining bytes: {remaining_bytes}")
+                window_size = min(initial_window_size, remaining_bytes)
+                
+                if window_size <= 0:
                     break
-                if proximo_numero_sequencia < sequencia_base + N and dados:
-                    tempo.append(time())
-                    servidor_socket.sendto(dados, endereco_cliente)
-                    print("Número de sequência enviado:", proximo_numero_sequencia)
-                    servidor_socket.sendto(str(proximo_numero_sequencia).encode(), endereco_cliente)
-                    # Para receber um ack
-                    threading.Thread(target=receber_ack, args=[servidor_socket]).start()
+
+                
+                i = proximo_numero_sequencia
+                if proximo_numero_sequencia < sequencia_base + N:
+                
+                    
+                    arquivo.seek(i * 1024//10)  # Move o ponteiro do arquivo para o byte correspondente
+                    packet = bytearray()
+                    packet.extend(i.to_bytes(4, byteorder='big'))  # Adiciona o numero de sequência ao pacote
+                    packet.extend(arquivo.read(1024//10))  
+                    
+                    if sequencia_base < N:                           
+                        tempo_chegada[sequencia_base] = time()
+                    else: 
+                        tempo_chegada = tempo[1:] + [time()]
+                    #print(f"Enviando payload {i}")
+                    servidor_socket.sendto(packet, endereco_cliente)
                     proximo_numero_sequencia += 1
+                    
+
+                resultado = queue.Queue()                    
+                threading.Thread(target=receber_ack, args=[servidor_socket, resultado]).start()
+                resultado_ack = resultado.get()
+                if  resultado_ack != "ACK não recebido":                        
+                    sequencia_base = int(resultado_ack) + 1
+                    
+                    if sequencia_base == proximo_numero_sequencia:
+                        #print(tempo)
+                        window_start += 1024//10
+                        
+                        if sequencia_base - 1 < N:   
+                            tempo_ack = (time() - tempo_chegada[(sequencia_base-1)])*5000
+                            tempo_ack = round(tempo_ack,3)                        
+                            tempo[(sequencia_base-1)] = tempo_ack 
+                        else: 
+                            tempo_ack = (time() - tempo_chegada[N-1])*5000
+                            tempo_ack = round(tempo_ack,3)  
+                            tempo = tempo[1:] + [tempo_ack]
+                        #print("Tempo para receber o ack na janela:", tempo)
+
                 else:
-                    servidor_socket.setblocking(True)
-                    dados_ack, _ = servidor_socket.recvfrom(100)
-                    print("Ultimos ACKS após enviar todo pacote:", dados_ack.decode())
-                    ACK = int(dados_ack.decode())
+                    if i == sequencia_base + N:
+                        print("aguardando por timeout")
+                        random_delay()
+                        proximo_numero_sequencia = sequencia_base
+                        #print(resultado_ack, "Pacote:",i-1, "base:", sequencia_base)
+                    else:   
+                        print(resultado_ack, "Pacote:",i, "Seq base:", sequencia_base) #ack nao recebido
+                
+                
 
-                    #threading.Thread(target=receber_ack, args=[servidor_socket]).start()
-
-                sequencia_base += 1
-
-            servidor_socket.sendto('eof'.encode(), endereco_cliente)
+                
+                
+                
+                
+            packet.extend((0).to_bytes(4, byteorder='big'))  
+            packet.extend('eof'.encode())
+            servidor_socket.sendto(packet, endereco_cliente)
             print(f"Enviado o arquivo {nome_arquivo} para {endereco_cliente}")
+            servidor_socket.setblocking(True)
 
     except FileNotFoundError:
         print(f"Arquivo {nome_arquivo} não encontrado no servidor.")
@@ -113,6 +167,7 @@ def main():
             #print(f"Servidor ouvindo em {HOST}:{PORTA_UDP}")
             mensagem, endereco_cliente = servidor_socket.recvfrom(1024)
             lidar_com_cliente(servidor_socket, endereco_cliente)
+           # break
 
     except KeyboardInterrupt:
         print("\nEncerrando socket do servidor.")

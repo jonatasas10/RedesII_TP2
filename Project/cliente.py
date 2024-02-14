@@ -1,7 +1,8 @@
 import socket, select
 import os
 from dotenv import load_dotenv
-import pickle
+import pickle, time
+from numpy import random
 
 load_dotenv()
 
@@ -10,8 +11,56 @@ HOST = os.environ.get("SERVER_HOST")
 PORTA_TCP = int(os.environ.get("TCP_PORT"))
 PORTA_UDP = int(os.environ.get("UDP_PORT"))
 
+def random_delay():
+    random_delay = random.uniform(0, 0.5)
+    time.sleep(random_delay)
 
 def receber_arquivo(udp_socket, nome_arquivo):
+    
+    expected_sequence_number = 0
+
+    with open(nome_arquivo, 'wb') as arquivo:
+        while True:
+            try:
+                packet, address = udp_socket.recvfrom(1024)
+
+                sequence_number_bytes = packet[:4]  # Extrai apenas os 4 primeiros bytes
+                sequence_number = int.from_bytes(sequence_number_bytes, byteorder='big')
+                if  'eof'.encode('utf8') in packet[4:]:
+                    #print(packet.decode())
+                    break
+               
+                
+                if -1 == sequence_number: #muda para caso o pacote tenha erros
+                    num = int(input("Num:"))
+                    expected_sequence_number = num
+                    udp_socket.sendto(str(expected_sequence_number).encode(), address)
+                    expected_sequence_number += 1
+
+                elif sequence_number == expected_sequence_number:
+                    print(f"recebido {sequence_number} {expected_sequence_number}")
+                    arquivo.write(packet[4:])
+                    ack = str(sequence_number)
+                    random_delay()
+                    udp_socket.sendto(str(expected_sequence_number).encode(), address)
+                    
+                    expected_sequence_number += 1 
+                else:
+                    print(f"Falha {sequence_number} != {expected_sequence_number}")
+                    udp_socket.sendto(str(expected_sequence_number).encode(), address)
+
+            except socket.timeout:
+                print("Timeout. Conexão encerrada.")
+                break
+
+    print(f"Arquivo {nome_arquivo} recebido com sucesso.")
+    #ack = str(-1)
+    #udp_socket.sendto(ack.encode(), address)
+
+    #udp_socket.close()
+
+
+def receber_arquivox(udp_socket, nome_arquivo):
     #udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     #udp_socket.bind(('0.0.0.0', PORTA_UDP))
     pacote_final = []
@@ -31,6 +80,7 @@ def receber_arquivo(udp_socket, nome_arquivo):
         print("\n")
         numero_seq = int(numero_seq.decode())
         if proximo_numero_sequencia == 5:
+             time.sleep(3)
              udp_socket.sendto('5'.encode(), endereco_servidor)
              udp_socket.sendto('5'.encode(), endereco_servidor)
 
