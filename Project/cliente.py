@@ -27,17 +27,10 @@ def receber_arquivo(udp_socket, nome_arquivo):
                 sequence_number_bytes = packet[:4]  # Extrai apenas os 4 primeiros bytes
                 sequence_number = int.from_bytes(sequence_number_bytes, byteorder='big')
                 if  'eof'.encode('utf8') in packet[4:]:
-                    #print(packet.decode())
+                    
                     break
-               
-                
-                if -1 == sequence_number: #muda para caso o pacote tenha erros
-                    num = int(input("Num:"))
-                    expected_sequence_number = num
-                    udp_socket.sendto(str(expected_sequence_number).encode(), address)
-                    expected_sequence_number += 1
 
-                elif sequence_number == expected_sequence_number:
+                if sequence_number == expected_sequence_number:
                     print(f"recebido {sequence_number} {expected_sequence_number}")
                     arquivo.write(packet[4:])
                     ack = str(sequence_number)

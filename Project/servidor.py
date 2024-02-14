@@ -47,57 +47,54 @@ def listar_arquivos():
 # Função para enviar um arquivo para o cliente usando UDP
 def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
     try:
-        with open(os.path.join(files_path, nome_arquivo), 'rb') as arquivo:
-            ACK = None
+        with open(os.path.join(files_path, nome_arquivo), 'rb') as arquivo:            
             sequencia_base = 0
             proximo_numero_sequencia = 0
             arquivo.seek(sequencia_base)
             N = 4
-            timeout = []
             tempo_chegada = [0 for x in range(N)]
             tempo = [0 for x in range(N)]
             initial_window_size = 4  # Define o tamanho da janela
             window_start = 0  # Começa a janela em 0
             threshold = 8  # Define o limite de reenvio do payload
             sending_retry = 0
-
+            eof = False
             while True:
                 remaining_bytes = os.path.getsize(os.path.join(files_path, nome_arquivo)) - window_start
                 #print(f"Remaining bytes: {remaining_bytes}")
                 window_size = min(initial_window_size, remaining_bytes)
                 
                 if window_size <= 0:
-                    break
+                    eof = True
 
-                
                 i = proximo_numero_sequencia
-                if proximo_numero_sequencia < sequencia_base + N:
-                
+                if proximo_numero_sequencia < sequencia_base + N and not eof:                
                     
                     arquivo.seek(i * 1024//10)  # Move o ponteiro do arquivo para o byte correspondente
                     packet = bytearray()
-                    packet.extend(i.to_bytes(4, byteorder='big'))  # Adiciona o numero de sequência ao pacote
-                    packet.extend(arquivo.read(1024//10))  
+                    packet.extend(i.to_bytes(4, byteorder='big')) 
+                    dados = arquivo.read(1024//10) # Adiciona o numero de sequência ao pacote
+                    packet.extend(dados)  
                     
                     if sequencia_base < N:                           
                         tempo_chegada[sequencia_base] = time()
                     else: 
                         tempo_chegada = tempo[1:] + [time()]
                     #print(f"Enviando payload {i}")
-                    servidor_socket.sendto(packet, endereco_cliente)
-                    proximo_numero_sequencia += 1
+                    if dados:
+                        servidor_socket.sendto(packet, endereco_cliente)
+                        print("Índice da janela enviada:", i-1)
+                        proximo_numero_sequencia += 1
                     
 
                 resultado = queue.Queue()                    
                 threading.Thread(target=receber_ack, args=[servidor_socket, resultado]).start()
                 resultado_ack = resultado.get()
-                if  resultado_ack != "ACK não recebido":                        
+                if  resultado_ack != "ACK não recebido" and not eof:                        
                     sequencia_base = int(resultado_ack) + 1
-                    
+                    window_start = sequencia_base*(1024//10)
                     if sequencia_base == proximo_numero_sequencia:
-                        #print(tempo)
-                        window_start += 1024//10
-                        
+                       # window_start += 1024//10
                         if sequencia_base - 1 < N:   
                             tempo_ack = (time() - tempo_chegada[(sequencia_base-1)])*5000
                             tempo_ack = round(tempo_ack,3)                        
@@ -106,23 +103,16 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
                             tempo_ack = (time() - tempo_chegada[N-1])*5000
                             tempo_ack = round(tempo_ack,3)  
                             tempo = tempo[1:] + [tempo_ack]
-                        #print("Tempo para receber o ack na janela:", tempo)
+                    else:
+                        pass
 
                 else:
                     if i == sequencia_base + N:
-                        print("aguardando por timeout")
-                        random_delay()
+                        print("ACK não recebido. Retransmissão. Sequência base:",sequencia_base, "último pacote da janela:", proximo_numero_sequencia)
                         proximo_numero_sequencia = sequencia_base
-                        #print(resultado_ack, "Pacote:",i-1, "base:", sequencia_base)
                     else:   
-                        print(resultado_ack, "Pacote:",i, "Seq base:", sequencia_base) #ack nao recebido
-                
-                
-
-                
-                
-                
-                
+                        if eof and sequencia_base == proximo_numero_sequencia: break
+                                       
             packet.extend((0).to_bytes(4, byteorder='big'))  
             packet.extend('eof'.encode())
             servidor_socket.sendto(packet, endereco_cliente)
@@ -164,7 +154,7 @@ def main():
         servidor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         servidor_socket.bind((HOST, PORTA_UDP))
         while True:
-            #print(f"Servidor ouvindo em {HOST}:{PORTA_UDP}")
+            print(f"Servidor ouvindo em {HOST}:{PORTA_UDP}")
             mensagem, endereco_cliente = servidor_socket.recvfrom(1024)
             lidar_com_cliente(servidor_socket, endereco_cliente)
            # break
