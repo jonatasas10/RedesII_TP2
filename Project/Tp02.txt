@@ -15,7 +15,12 @@ A aplicação criada deverá funcionar da seguinte maneira:
 a. O servidor deve disponibilizar uma lista de todos os arquivos para o cliente que conectar. 
 b. Criar uma senha para somente o cliente com a senha poder enviar arquivos para o servidor. 
 2. Cliente: 
-a. Deve conectar ao servidor de arquivos,ões, tratamento de erro (emitindo mensagem de erro se necessário), tratamento de exceções 
+a. Deve conectar ao servidor de arquivos, receber a lista de arquivos e poder baixar um arquivo. 
+O cliente e o servidor devem ter tratamento de erros e exceções. Todos os detalhes, como 
+configuração, mensagens e o que não estiver especificado aqui devem ser definidos e documentados 
+no relatório. Interface, organização, criatividade são valorizadas! Capriche! 
+Dêem atenção para a qualidade do código produzido: códigos bem comentados, uso adequado de 
+funções, tratamento de erro (emitindo mensagem de erro se necessário), tratamento de exceções 
 (valores fora de faixa, resposta inválida, etc.).  
 3) ORIENTAÇÕES 
 O objetivo maior deste trabalho é implementar um serviço de transmissão confiável, utilizando o UDP 
@@ -26,7 +31,12 @@ O programa cliente solicitará o conteúdo de um arquivo, disponível no servido
 receberá o arquivo e o armazenará no disco. 
 Será necessário executar experimentos para fins de avaliação do desempenho do protocolo, com e 
 sem falhas. O número de pacotes retransmitidos também deve ser computado para comparação. 
-Para fins de avaliação você deverá mensurar a largura de banda entre o cliente e o servidor, a
+Para fins de avaliação você deverá mensurar a largura de banda entre o cliente e o servidor, além do 
+atraso (RTT). Você poderá executar testes variando estes parâmetros. Seu protocolo deve ser avaliado 
+com diferentes tamanhos de janelas, mantendo-se um atraso no link intermediário. Os valores 
+adequados de variação do tamanho da janela devem ser encontrados pelos programadores dos 
+protocolos em cada caso. Para valores menores, pode ser recomendável reduzir o tamanho do arquivo 
+para evitar esperas muito longas. 
 Além de mostrar o throughput oferecido pelo protocolo, devem também ser apresentados os 
 resultados de execução, simulando uma situação quando o link entre os switches tiver uma taxa de 
 perda de 5% (loss=5).  
@@ -39,7 +49,13 @@ dados do arquivo.
 Mensagens de confirmação podem ser necessárias em diferentes momentos e uma técnica de 
 detecção de erros também deverá ser utilizada, pois erros poderão ocorrer durante os testes. 
 É necessário o tratamento de temporizações (timeouts). 
-A porta padrão de recepção de conexões do servidor deve ser o ano de nascimento do integrante ma identificação do início e fim da conexão, determinação dos 
+A porta padrão de recepção de conexões do servidor deve ser o ano de nascimento do integrante mais 
+novo do grupo (ex: 2000) 
+As mensagens UDP não devem ultrapassar o MTU da rede, isto é, cada mensagem UDP não deve 
+transportar mais que 1460 bytes de dados (isso, mas 20 bytes do cabeçalho UDP e outros 20 do 
+cabeçalho IP completarão os 1500 bytes de dados em um quadro Ethernet). 
+O relatório a ser apresentado deve conter detalhes como o formato dos cabeçalhos das mensagens, o 
+processo de transmissão do arquivo e de identificação do início e fim da conexão, determinação dos 
 intervalos de temporização, etc. 
 Certifique-se de gerar um hash do arquivo original e do arquivo escrito pelo receptor para se certificar 
 de que seu protocolo funciona corretamente. 
@@ -52,7 +68,11 @@ Caprichem! Até 10 pontos extras poderão ser atribuídos ao trabalho nos seguin
 i) criação de uma versão mobile para os usuários  ou  de uma sistema web para acesso ao file server; 
 ii) disponibilização da aplicação em uma plataforma em nuvem de IaaS (Infrastructure-as-a-Service) 
 como serviço da AWS ou Azure. 
-7) ENTREGA E APRESENTAÇÃO - � tem 3 alunos. Um outro colega que está sem grupo pode fazer o trabalho com a gente?  
+7) ENTREGA E APRESENTAÇÃO - Deve ser entregue via Moodle um arquivo.zip com a aplicação, um arquivo leia-me com informações 
+sobre a compilação desse programa, além do relatório final, no formato do SBC (disponibilizado no 
+site). - A apresentação deverá ocorrer em horário previamente agendado na sala G409. - Todos os alunos devem estar aptos a responder dúvidas sobre a implementação do trabalho. 
+FREQUENTLY ASKED QUESTION (FAQ)  
+Nosso grupo já tem 3 alunos. Um outro colega que está sem grupo pode fazer o trabalho com a gente?  
 Não. 
 Estamos com muita dificuldade em fazer o trabalho e conseguimos desenvolver apenas o básico. 
 Vamos ganhar zero? 
@@ -65,4 +85,6 @@ de cada aluno do grupo.
 E se eu encontrar um trabalho pronto, colocar o nome e apresentar? 
 Entretanto, se os trabalhos apresentados forem diferentes entre si e o grupo tiver conhecimento pleno 
 de cada ponto que está na aplicação, o professor nem desconfiará... rssss.  É sério. 
-Um integrante tem um com
+Um integrante tem um compromisso no trabalho e não pode apresentar no dia em que o grupo irá 
+apresentar. 
+Marque um dia/horário em que todos possam apresentar. 

@@ -4,6 +4,7 @@ import threading
 import pickle
 from dotenv import load_dotenv
 from numpy import random
+import zlib
 
 from time import time, sleep
 import PyPDF2
@@ -25,11 +26,27 @@ def random_delay():
     random_delay = random.uniform(0, 0.2)
     sleep(random_delay)
 
+def calcular_checksum(data):
+    return zlib.crc32(data)
+
+def get_network_status(servidor_socket, endereco_servidor):
+        print(f"Connection from {client_address}")
+
+        start_time = time.time()
+
+        data = client_socket.recv(1024)
+
+        end_time = time.time()
+        connection_delay = end_time - start_time
+
+        download_speed = len(data) / connection_delay
+        print(f"Connection delay: {connection_delay} seconds")
+        print(f"Download speed: {download_speed} bytes/second")
 
 def receber_ack(servidor_socket, resultado):
     servidor_socket.setblocking(False)
     ler_socket, _, _ = select.select([servidor_socket], [], [], 0.0)
-    random_delay()
+    #random_delay()
     for s in ler_socket:
         if s is servidor_socket:
             dados, _ = servidor_socket.recvfrom(100)
@@ -42,6 +59,19 @@ def receber_ack(servidor_socket, resultado):
 # Função para listar os arquivos no diretório do servidor
 def listar_arquivos():
     return os.listdir(files_path)
+
+def timeout_ack(sequencia_base, tempo_chegada, tempo, N):
+    
+    if sequencia_base < N:       
+        tempo_ack = (time() - tempo_chegada[sequencia_base])        
+        tempo_ack = round(tempo_ack,3)                
+        tempo[sequencia_base] = tempo_ack 
+    else: 
+        tempo_ack = (time() - tempo_chegada[N-1])
+        tempo_ack = round(tempo_ack,3)  
+        tempo = tempo[1:] + [tempo_ack]
+    
+    return tempo
 
 # Função para enviar um arquivo para o cliente usando UDP
 def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
@@ -74,42 +104,40 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
                     packet = bytearray()
                     packet.extend(i.to_bytes(4, byteorder='big')) 
                     dados = arquivo.read(buffer) # Adiciona o numero de sequência ao pacote
+                    checksum = calcular_checksum(dados)
+                    
+                    packet.extend(checksum.to_bytes(4, byteorder='big'))
                     packet.extend(dados)  
                     
-                    if sequencia_base < N:                           
-                        tempo_chegada[sequencia_base] = time()
+                    if i < N:                           
+                        tempo_chegada[i] = time()
                     else: 
-                        tempo_chegada = tempo[1:] + [time()]
+                        tempo_chegada = tempo_chegada[1:] + [time()]
                     #print(f"Enviando payload {i}")
                     if dados:
                         servidor_socket.sendto(packet, endereco_cliente)
-                        print("Índice da janela enviada:", i-1)
+                        print("Índice da janela enviada:", i)
                         proximo_numero_sequencia += 1
-                    
-
+                
                 resultado = queue.Queue()                    
                 threading.Thread(target=receber_ack, args=[servidor_socket, resultado]).start()
                 resultado_ack = resultado.get()
+                
                 if  resultado_ack != "ACK não recebido" and not eof:                        
                     sequencia_base = int(resultado_ack) + 1
-                    window_start = sequencia_base*buffer
-                    if sequencia_base == proximo_numero_sequencia:
-                       # window_start += 1024//10
-                        if sequencia_base - 1 < N:   
-                            tempo_ack = (time() - tempo_chegada[(sequencia_base-1)])*5000
-                            tempo_ack = round(tempo_ack,3)                        
-                            tempo[(sequencia_base-1)] = tempo_ack 
-                        else: 
-                            tempo_ack = (time() - tempo_chegada[N-1])*5000
-                            tempo_ack = round(tempo_ack,3)  
-                            tempo = tempo[1:] + [tempo_ack]
-                    else:
-                        pass
+                    window_start = sequencia_base*buffer                    
+                    tempo = timeout_ack(sequencia_base - 1, tempo_chegada, tempo, N)
+                    
+                    print("TEMPO DE RESPOSTA:", tempo)
 
                 else:
-                    if i == sequencia_base + N:
-                        print("ACK não recebido. Retransmissão. Sequência base:",sequencia_base, "último pacote da janela:", proximo_numero_sequencia)
-                        proximo_numero_sequencia = sequencia_base
+                    if i == sequencia_base + N:                        
+                        tempo = timeout_ack(sequencia_base, tempo_chegada, tempo, N)
+                        if tempo[sequencia_base] > 0.6:
+                            print("ACK", sequencia_base, "não recebido a tempo.")                        
+                            proximo_numero_sequencia = sequencia_base
+
+                            print("Tempo atual - retransmissão:", tempo)
                     else:   
                         if eof and sequencia_base == proximo_numero_sequencia: break
                                        
@@ -153,10 +181,16 @@ def main():
     try:
         servidor_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         servidor_socket.bind((HOST, PORTA_UDP))
+
         while True:
             print(f"Servidor ouvindo em {HOST}:{PORTA_UDP}")
             mensagem, endereco_cliente = servidor_socket.recvfrom(1024)
-            lidar_com_cliente(servidor_socket, endereco_cliente)
+            descartar = mensagem.isdigit()
+            
+            if not descartar:
+                lidar_com_cliente(servidor_socket, endereco_cliente)
+            else:
+                print("Pacote descartado.")
            # break
 
     except KeyboardInterrupt:
