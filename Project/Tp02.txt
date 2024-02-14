@@ -3,88 +3,66 @@ TRABALHO PRÁTICO
 O objetivo deste trabalho é praticar programação para comunicação em redes de computadores por 
 meio de Sockets. A aplicação a ser desenvolvida é um Servidor de arquivos, utilizando o UDP. 
 1) ORIENTAÇÕES 
-O trabalho poderá ser realizdo em grupo de até 3 (três) alunos. É permitido (e recomendado) que os 
+O trabalho poderá ser realizado em grupo de até 3 (três) alunos. É permitido (e recomendado) que os 
 alunos troquem experiências sobre as dificuldades do trabalho. 
-A linguagem de programação e o sistema operacional utilizadosão de livre escolha dos alunos.  
+A linguagem de programação e o sistema operacional utilizado são de livre escolha dos alunos.  
 Apresentação e entrega final do relatório: até 16/02/2024 
 Valor: 22 pontos 
 Pontos extras: até 10 pontos adicionais! 
 2) DESENVOLVIMENTO 
 A aplicação criada deverá funcionar da seguinte maneira: 
 1. Servidor: 
-a. O servidor deve disponibilizar uma lista e todos os arquivos para o cliente que conectar. 
+a. O servidor deve disponibilizar uma lista de todos os arquivos para o cliente que conectar. 
 b. Criar uma senha para somente o cliente com a senha poder enviar arquivos para o servidor. 
 2. Cliente: 
-a. Deve conectar ao servidor de arquivos, reeber a lista de arquivos e poder baixar um arquivo. 
-O cliente e o servidor devem ter tratamento de erros e exceções. Todos os detalhes, como 
-configuração, mensagens e o que não estiver especificado aqui devem ser definidos e documentados 
-no relatório. Interface, organização, criatividade sã valorizadas! Capriche! 
-Dêem atenção para a qualidade do código produzido: códigos bem comentados, uso adequado de 
-funções, tratamento de erro (emitindo mensagem de erro se necessário), tratamnto de exceções 
+a. Deve conectar ao servidor de arquivos,ões, tratamento de erro (emitindo mensagem de erro se necessário), tratamento de exceções 
 (valores fora de faixa, resposta inválida, etc.).  
 3) ORIENTAÇÕES 
 O objetivo maior deste trabalho é implementar um serviço de transmissão confiável, utilizando o UDP 
 como protocolo de transporte. Como esse protocolo não oferece um serviço confiável será sua função 
-mplementar um protocolo para garantir entrega confiável e em ordem. Soluções sem janela 
+implementar um protocolo para garantir entrega confiável e em ordem. Soluções sem janela 
 deslizante (só stop-and-wait) também serão aceitas, mas avaliadas com uma penalização. 
-O programa client solicitará o conteúdo de um arquivo, disponível no servidor de arquivos. O cliente 
+O programa cliente solicitará o conteúdo de um arquivo, disponível no servidor de arquivos. O cliente 
 receberá o arquivo e o armazenará no disco. 
 Será necessário executar experimentos para fins de avaliação do desempenho do protocolo, com e 
-sem falhas. O número de pacotes retransmitidos também deve ser comutado para comparação. 
-Para fins de avaliação você deverá mensurar a largura de banda entre o cliente e o servidor, além do 
-atraso (RTT). Você poderá executar testes variando estes parâmetro. Seu protocolo deve ser avaliado 
-com diferentes tamanhos de janelas, mantendo-se um atraso no link intermediário. Os valores 
-adequados de variação do tamanho da janela devem ser encontrados pelos programadores dos 
-protocolos em cada caso. Para valores menores, pode ser recomendável reduzir o taanho do arquivo 
-para evitar esperas muito longas. 
+sem falhas. O número de pacotes retransmitidos também deve ser computado para comparação. 
+Para fins de avaliação você deverá mensurar a largura de banda entre o cliente e o servidor, a
 Além de mostrar o throughput oferecido pelo protocolo, devem também ser apresentados os 
-resultados de execução, simulando uma situação quando  link entre os switches tiver uma taxa de 
+resultados de execução, simulando uma situação quando o link entre os switches tiver uma taxa de 
 perda de 5% (loss=5).  
 Para esta parte, cada grupo deverá apresentar um relatório descrevendo o funcionamento do seu 
 protocolo e comparando os mecanismos de transmissão no envio de um arquivo de + - 5 MB. 
 Detalhes de operação: 
-Para criar um protocol confiável sobre UDP usando janela deslizante, vocês devem definir quais serão 
+Para criar um protocolo confiável sobre UDP usando janela deslizante, vocês devem definir quais serão 
 os campos do cabeçalho do seu pacote (que será enviado dentro do pacote UDP), que encapsulará os 
-dados do arquivo. 
+dados do arquivo.  
 Mensagens de confirmação podem ser necessárias em diferentes momentos e uma técnica de 
 detecção de erros também deverá ser utilizada, pois erros poderão ocorrer durante os testes. 
 É necessário o tratamento de temporizações (timeouts). 
-A porta padrão de recepção de conexões do servdor deve ser o ano de nascimento do integrante mais 
-novo do grupo (ex: 2000) 
-As mensagens UDP não devem ultrapassar o MTU da rede, isto é, cada mensagem UDP não deve 
-transportar mais que 1460 byts de dados (isso, mas 20 bytes do cabeçalho UDP e outros 20 do 
-cabeçalho IP completarão os 1500 bytes de dados em um quadro Ethernet). 
-O relatório a ser apresentado deve conter detalhes como o formato dos cabeçalhos das mensagens, o 
-processo de transmissão do arquivo e de identificação do in�cio e fim da conexão, determinação dos 
+A porta padrão de recepção de conexões do servidor deve ser o ano de nascimento do integrante ma identificação do início e fim da conexão, determinação dos 
 intervalos de temporização, etc. 
 Certifique-se de gerar um hash do arquivo original e do arquivo escrito pelo receptor para se certificar 
-de que seu protcolo funciona corretamente. 
+de que seu protocolo funciona corretamente. 
 4) TESTES 
 Descrever de forma detalhada os testes realizados, resultados obtidos e análise dos resultados; 
 Adicionalmente, deverão ser incluídos prints de telas do Wireshark confirmando os testes. 
-5) CONCLUSÃO E REFERÊNCIAS - Conclusão do trabalho enfatizando os prncipais resultados e observações. - Bibliografia pesquisada (notas de aula, livros, artigos). 
+5) CONCLUSÃO E REFERÊNCIAS - Conclusão do trabalho enfatizando os principais resultados e observações. - Bibliografia pesquisada (notas de aula, livros, artigos). 
 6) PONTOS EXTRAS 
-Caprichem! Até 10 pontos extras poderão ser atribuídos ao trabalho nos seguintes cass: 
+Caprichem! Até 10 pontos extras poderão ser atribuídos ao trabalho nos seguintes casos: 
 i) criação de uma versão mobile para os usuários  ou  de uma sistema web para acesso ao file server; 
 ii) disponibilização da aplicação em uma plataforma em nuvem de IaaS (Infrastructure-as-a-Service) 
 como serviço da AWS ou Azure. 
-7) ENTREGA E APRESENTAÇÃO - Deve ser entregue via Moode um arquivo.zip com a aplicação, um arquivo leia-me com informações 
-sobre a compilação desse programa, além do relatório final, no formato do SBC (disponibilizado no 
-site). - A apresentaçãodeverá ocorrer em horário previamente agendado na sala G409. - Todos os alunos devem estar aptos a responder dúvidas sobre a implementação do trabalho. 
-FREQUENTLY ASKED QUESTION (FAQ)  
-Nosso grupo já tem 3 alunos. Um outro colega que está sem grupo pode fazer o trabalho com a gente?  
+7) ENTREGA E APRESENTAÇÃO - � tem 3 alunos. Um outro colega que está sem grupo pode fazer o trabalho com a gente?  
 Não. 
-stamos com muita dificuldade em fazer o trabalho e conseguimos desenvolver apenas o básico. 
+Estamos com muita dificuldade em fazer o trabalho e conseguimos desenvolver apenas o básico. 
 Vamos ganhar zero? 
-Todo e qualquer esforço do aluno/grupo será bem recompensado. Um relatório bem feito,descrevendo 
+Todo e qualquer esforço do aluno/grupo será bem recompensado. Um relatório bem feito, descrevendo 
 as limitações e pontos de melhoria do trabalho pode ajudar na nota.  
 Um integrante do meu grupo não sabe o que foi apresentado. Corremos o risco de tirarmos zero? 
 Sim. Se não sabe o que está sendo apresentado, não apresente. Normalmente o professor direciona as 
-“dúvidas” à stes alunos...  Assim, é preciso nivelar o que está sendo desenvolvido com o background 
+“dúvidas” à estes alunos...  Assim, é preciso nivelar o que está sendo desenvolvido com o background 
 de cada aluno do grupo.  
 E se eu encontrar um trabalho pronto, colocar o nome e apresentar? 
-Entretanto, se o trabalhos apresentados forem diferentes entre si e o grupo tiver conhecimento pleno 
+Entretanto, se os trabalhos apresentados forem diferentes entre si e o grupo tiver conhecimento pleno 
 de cada ponto que está na aplicação, o professor nem desconfiará... rssss.  É sério. 
-Um integrante tem um compromisso no trabalho e não pode apresentar no dia em que o grupo irá 
-apresentar. 
-Marque um dia/hrário em que todos possam apresentar. 
+Um integrante tem um com

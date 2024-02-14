@@ -12,7 +12,6 @@ load_dotenv()
 dir = os.path.dirname(__file__)
 files_path = os.path.join(dir, os.environ.get("SERVER_FILES_PATH"))
 HOST = os.environ.get("SERVER_HOST")
-PORTA_TCP = int(os.environ.get("TCP_PORT"))
 PORTA_UDP = int(os.environ.get("UDP_PORT"))
 
 #ACK = 0
@@ -47,7 +46,8 @@ def listar_arquivos():
 # Função para enviar um arquivo para o cliente usando UDP
 def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
     try:
-        with open(os.path.join(files_path, nome_arquivo), 'rb') as arquivo:            
+        with open(os.path.join(files_path, nome_arquivo), 'rb') as arquivo:  
+            buffer = 1460          
             sequencia_base = 0
             proximo_numero_sequencia = 0
             arquivo.seek(sequencia_base)
@@ -70,10 +70,10 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
                 i = proximo_numero_sequencia
                 if proximo_numero_sequencia < sequencia_base + N and not eof:                
                     
-                    arquivo.seek(i * 1024//10)  # Move o ponteiro do arquivo para o byte correspondente
+                    arquivo.seek(i * buffer)  # Move o ponteiro do arquivo para o byte correspondente
                     packet = bytearray()
                     packet.extend(i.to_bytes(4, byteorder='big')) 
-                    dados = arquivo.read(1024//10) # Adiciona o numero de sequência ao pacote
+                    dados = arquivo.read(buffer) # Adiciona o numero de sequência ao pacote
                     packet.extend(dados)  
                     
                     if sequencia_base < N:                           
@@ -92,7 +92,7 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
                 resultado_ack = resultado.get()
                 if  resultado_ack != "ACK não recebido" and not eof:                        
                     sequencia_base = int(resultado_ack) + 1
-                    window_start = sequencia_base*(1024//10)
+                    window_start = sequencia_base*buffer
                     if sequencia_base == proximo_numero_sequencia:
                        # window_start += 1024//10
                         if sequencia_base - 1 < N:   

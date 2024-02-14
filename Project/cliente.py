@@ -8,7 +8,6 @@ load_dotenv()
 
 # Configurações do cliente
 HOST = os.environ.get("SERVER_HOST")
-PORTA_TCP = int(os.environ.get("TCP_PORT"))
 PORTA_UDP = int(os.environ.get("UDP_PORT"))
 
 def random_delay():
@@ -18,11 +17,11 @@ def random_delay():
 def receber_arquivo(udp_socket, nome_arquivo):
     
     expected_sequence_number = 0
-
+    buffer = 1500
     with open(nome_arquivo, 'wb') as arquivo:
         while True:
             try:
-                packet, address = udp_socket.recvfrom(1024)
+                packet, address = udp_socket.recvfrom(buffer)
 
                 sequence_number_bytes = packet[:4]  # Extrai apenas os 4 primeiros bytes
                 sequence_number = int.from_bytes(sequence_number_bytes, byteorder='big')
@@ -99,7 +98,7 @@ def receber_arquivox(udp_socket, nome_arquivo):
 def lidar_com_mensagens(cliente_socket):
     try:
         while True:
-            mensagem = cliente_socket.recv(5242880).decode()
+            mensagem = cliente_socket.recv(1500).decode()
             print(mensagem)
     except ConnectionResetError:
         print("Conexão com o servidor foi encerrada.")
@@ -117,9 +116,9 @@ def main():
         cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         cliente_socket.sendto("start".encode(), (HOST, PORTA_UDP))
         # Recebe a lista de arquivos do servidor # aqui estava dando erro logo aops recebimento, passou para cima.
-        arquivos_disponiveis = cliente_socket.recv(4096).decode()
+        arquivos_disponiveis = cliente_socket.recv(1500).decode()
 
-        nome_arquivo = "Tp02.txt"
+        nome_arquivo = "TP02D.pdf"
 
         cliente_socket.sendto(nome_arquivo.encode(), (HOST, PORTA_UDP))
         receber_arquivo(cliente_socket, nome_arquivo)
