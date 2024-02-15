@@ -29,19 +29,14 @@ def random_delay():
 def calcular_checksum(data):
     return zlib.crc32(data)
 
-def get_network_status(servidor_socket, endereco_servidor):
-        print(f"Connection from {client_address}")
-
-        start_time = time.time()
-
-        data = client_socket.recv(1024)
-
-        end_time = time.time()
-        connection_delay = end_time - start_time
-
-        download_speed = len(data) / connection_delay
-        print(f"Connection delay: {connection_delay} seconds")
-        print(f"Download speed: {download_speed} bytes/second")
+def get_network_status(servidor_socket, endereco_cliente, tam_pacote, atraso):
+        print(f"Connection from {endereco_cliente}")
+    
+        atraso = 0.1 if atraso == 0 else atraso
+        download_speed = tam_pacote*8 / atraso
+        download_speed /= 10^6
+        print(f"Connection delay: {atraso} seconds")
+        print(f"Download speed: {round(download_speed, 2)} Mbps")
 
 def receber_ack(servidor_socket, resultado):
     servidor_socket.setblocking(False)
@@ -77,7 +72,7 @@ def timeout_ack(sequencia_base, tempo_chegada, tempo, N):
 def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
     try:
         with open(os.path.join(files_path, nome_arquivo), 'rb') as arquivo:  
-            buffer = 1460          
+            buffer = 1450         
             sequencia_base = 0
             proximo_numero_sequencia = 0
             arquivo.seek(sequencia_base)
@@ -115,6 +110,7 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
                         tempo_chegada = tempo_chegada[1:] + [time()]
                     #print(f"Enviando payload {i}")
                     if dados:
+                        
                         servidor_socket.sendto(packet, endereco_cliente)
                         print("Índice da janela enviada:", i)
                         proximo_numero_sequencia += 1
@@ -129,6 +125,8 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
                     tempo = timeout_ack(sequencia_base - 1, tempo_chegada, tempo, N)
                     
                     print("TEMPO DE RESPOSTA:", tempo)
+                    atraso = tempo[sequencia_base - 1] if sequencia_base < N else tempo[N-1]
+                    get_network_status(servidor_socket, endereco_cliente, len(packet), atraso)
 
                 else:
                     if i == sequencia_base + N:                        

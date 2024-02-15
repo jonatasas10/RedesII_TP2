@@ -11,11 +11,18 @@ HOST = os.environ.get("SERVER_HOST")
 PORTA_UDP = int(os.environ.get("UDP_PORT"))
 
 def random_delay():
-    random_delay = random.uniform(0, 1)
+    random_delay = random.uniform(0.15, 1)
     time.sleep(random_delay)
 
 def calcular_checksum(data):
     return zlib.crc32(data)
+
+def velocidade_download(endereco_servidor, tam_pacote, atraso):
+        print(f"Connection from {endereco_servidor}")                
+        download_speed = tam_pacote*8 / atraso
+        download_speed /= 10^6
+        print(f"\nConnection delay: {round(atraso,2)} seconds")
+        print(f"Download speed: {round(download_speed, 2)} Mbps\n")
 
 def receber_arquivo(udp_socket, nome_arquivo):
     
@@ -24,27 +31,28 @@ def receber_arquivo(udp_socket, nome_arquivo):
     with open(nome_arquivo, 'wb') as arquivo:
         while True:
             try:
+                tempo_inicial = time.time()
+                random_delay()
                 packet, address = udp_socket.recvfrom(buffer)
-
+                
                 sequence_number_bytes = packet[:4]  # Extrai apenas os 4 primeiros bytes
                 checksum_recebido = int.from_bytes(packet[4:8], byteorder='big')
-                checkum = calcular_checksum(packet[8:])
-                
-                print("Checksum recebido:",checksum_recebido)
-                print("Checksum recalculado:",checksum_recebido)
-                if checksum_recebido == checkum:
-                    print("É igual")
-                else:
-                    print("Diferente")
+                checkum = calcular_checksum(packet[8:])                                
                 sequence_number = int.from_bytes(sequence_number_bytes, byteorder='big')
 
                 if  'eof'.encode('utf8') in packet[4:]:                    
                     break
 
-                if sequence_number == expected_sequence_number:
+                if sequence_number == expected_sequence_number and checksum_recebido == checkum:
                     print(f"recebido {sequence_number} {expected_sequence_number}")
                     arquivo.write(packet[8:])
                     ack = str(sequence_number)
+                    tempo_final = time.time()
+                    tam_pacote = len(packet)
+                    atraso = tempo_final - tempo_inicial
+                   # print(atraso)
+                    velocidade_download(address, tam_pacote, atraso)
+
                     random_delay()
                     udp_socket.sendto(str(expected_sequence_number).encode(), address)
                     
@@ -62,49 +70,6 @@ def receber_arquivo(udp_socket, nome_arquivo):
     #udp_socket.sendto(ack.encode(), address)
 
     #udp_socket.close()
-
-
-def receber_arquivox(udp_socket, nome_arquivo):
-    #udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    #udp_socket.bind(('0.0.0.0', PORTA_UDP))
-    pacote_final = []
-    proximo_numero_sequencia = 0
-
-    while True:
-
-        dados, endereco_servidor = udp_socket.recvfrom(102)
-        #print(endereco_servidor)
-        print(dados.decode('utf8'))
-        if dados.decode() == 'eof':
-            #udp_socket.sendto('eof'.encode(), endereco_servidor)
-            break
-
-        numero_seq, endereco_servidor = udp_socket.recvfrom(10)
-        print("\nTAMANHO DO PACOTE", len(dados), " / NUMERO SEQUENCIA", numero_seq.decode())
-        print("\n")
-        numero_seq = int(numero_seq.decode())
-        if proximo_numero_sequencia == 5:
-             time.sleep(3)
-             udp_socket.sendto('5'.encode(), endereco_servidor)
-             udp_socket.sendto('5'.encode(), endereco_servidor)
-
-        if len(dados) > 50:
-            print("Prox:", numero_seq, proximo_numero_sequencia)
-            if numero_seq == proximo_numero_sequencia:
-                udp_socket.sendto(str(proximo_numero_sequencia).encode('utf8'), endereco_servidor)
-                proximo_numero_sequencia = proximo_numero_sequencia + 1
-
-            else:
-
-                udp_socket.sendto(str(proximo_numero_sequencia - 1).encode('utf8'), endereco_servidor)
-
-
-    with open(nome_arquivo, 'wb') as arquivo:
-        arquivo.write(dados)
-        print(f"Arquivo {nome_arquivo} salvo com sucesso.")
-        arquivo.close ()
-        #udp_socket.close()
-
 
 # Função para lidar com as mensagens do servidor
 def lidar_com_mensagens(cliente_socket):
