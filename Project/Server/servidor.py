@@ -73,7 +73,7 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
             window_size_inicial = 4  # Define o tamanho da janela
             window_start = 0  # Começa a janela em 0
             threshold = 8  # Define o limite de reenvio do payload 
-            sending_retry = 0
+            tentativa_reenvio = 0
             eof = False
 
             while True:
@@ -83,6 +83,10 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
                 
                 if window_size <= 0:
                     eof = True
+
+                if tentativa_reenvio >= 10:
+                    eof = True
+                    break
 
                 i = proximo_numero_sequencia
                 if proximo_numero_sequencia < numero_sequencia_base + N and not eof:                
@@ -111,7 +115,9 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
                 threading.Thread(target=receber_ack, args=[servidor_socket, resultado]).start()
                 resultado_ack = resultado.get()
                 
-                if  resultado_ack != "ACK não recebido" and not eof:                        
+                if  resultado_ack != "ACK não recebido" and not eof:
+                    tentativa_reenvio = 0
+
                     numero_sequencia_base = int(resultado_ack) + 1
                     window_start = numero_sequencia_base*buffer                    
                     tempo = timeout_ack(numero_sequencia_base - 1, tempo_chegada, tempo, N)
@@ -120,21 +126,30 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
                     atraso = tempo[numero_sequencia_base - 1] if numero_sequencia_base < N else tempo[N-1]
                     get_network_status(servidor_socket, endereco_cliente, len(packet), atraso)
 
-                else:
-                    if i == numero_sequencia_base + N:                        
-                        tempo = timeout_ack(numero_sequencia_base, tempo_chegada, tempo, N)
-                        if tempo[numero_sequencia_base] > 0.6:
-                            print("ACK", numero_sequencia_base, "não recebido a tempo.")                        
-                            proximo_numero_sequencia = numero_sequencia_base
+                elif i == numero_sequencia_base + N:                        
+                    tempo = timeout_ack(numero_sequencia_base, tempo_chegada, tempo, N)
 
-                            print("Tempo atual - retransmissão:", tempo)
-                    else:   
-                        if eof and numero_sequencia_base == proximo_numero_sequencia: break
+                    if tempo[numero_sequencia_base] > 0.6:
+                        print("ACK", numero_sequencia_base, "não recebido a tempo.")
+                        
+                        tentativa_reenvio += 1
+                        print(f"tentativa de reenvio: {tentativa_reenvio}")
+
+                        proximo_numero_sequencia = numero_sequencia_base
+
+                        print("Tempo atual - retransmissão:", tempo)
+                    elif eof and numero_sequencia_base == proximo_numero_sequencia:
+                        break
                                        
             packet.extend((0).to_bytes(4, byteorder='big'))  
             packet.extend('eof'.encode())
             servidor_socket.sendto(packet, endereco_cliente)
-            print(f"Enviado o arquivo {nome_arquivo} para {endereco_cliente}")
+
+            if tentativa_reenvio < 10:
+                print(f"Arquivo {nome_arquivo} enviado para {endereco_cliente}")
+            else:
+                print(f"Arquivo {nome_arquivo} não enviado para {endereco_cliente}, timeout de envio")
+                
             servidor_socket.setblocking(True)
 
     except FileNotFoundError:

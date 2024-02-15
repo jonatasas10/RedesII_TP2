@@ -133,4 +133,4 @@ def client():
         cliente_socket.close()
 
 if __name__ == "__main__":
-    main()
+    client()
