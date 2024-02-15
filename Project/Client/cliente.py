@@ -13,7 +13,7 @@ PORTA_UDP = int(os.environ.get("UDP_PORT"))
 client_files_path = os.path.join(dir, os.environ.get("CLIENT_FILES_PATH"))
 
 def random_delay():
-    random_delay = random.uniform(0.15, 1)
+    random_delay = random.uniform(0.01, 0.2)
     time.sleep(random_delay)
 
 def calcular_checksum(data):
@@ -42,13 +42,12 @@ def receber_arquivo(udp_socket, nome_arquivo):
                 checkum = calcular_checksum(packet[8:])                                
                 sequence_number = int.from_bytes(sequence_number_bytes, byteorder='big')
 
-                if  'eof'.encode('utf8') in packet[4:]:                    
+                if  'eof'.encode('utf8') in packet[4:] and len(packet) < 80:                    
                     break
 
                 if sequence_number == numero_sequencia_esperado and checksum_recebido == checkum:
                     print(f"recebido {sequence_number} {numero_sequencia_esperado}")
-                    arquivo.write(packet[8:])
-                    ack = str(sequence_number)
+                    arquivo.write(packet[8:])                    
                     tempo_final = time.time()
                     tam_pacote = len(packet)
                     atraso = tempo_final - tempo_inicial

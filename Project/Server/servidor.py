@@ -67,12 +67,12 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
             numero_sequencia_base = 0
             proximo_numero_sequencia = 0
             arquivo.seek(numero_sequencia_base)
-            N = 4
+            N = 10
             tempo_chegada = [0 for x in range(N)]
             tempo = [0 for x in range(N)]
-            window_size_inicial = 4  # Define o tamanho da janela
+            window_size_inicial = N  # Define o tamanho da janela
             window_start = 0  # Começa a janela em 0
-            threshold = 8  # Define o limite de reenvio do payload 
+            #threshold = 8  # Define o limite de reenvio do payload 
             tentativa_reenvio = 0
             eof = False
 
@@ -129,7 +129,8 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
                 elif i == numero_sequencia_base + N:                        
                     tempo = timeout_ack(numero_sequencia_base, tempo_chegada, tempo, N)
 
-                    if tempo[numero_sequencia_base] > 0.6:
+                    indice = numero_sequencia_base if numero_sequencia_base < N else N - 1
+                    if tempo[indice] > 2: #TODO verificar esse tempo 0.6s
                         print("ACK", numero_sequencia_base, "não recebido a tempo.")
                         
                         tentativa_reenvio += 1
@@ -138,8 +139,8 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
                         proximo_numero_sequencia = numero_sequencia_base
 
                         print("Tempo atual - retransmissão:", tempo)
-                    elif eof and numero_sequencia_base == proximo_numero_sequencia:
-                        break
+                elif eof and numero_sequencia_base == proximo_numero_sequencia:
+                    break
                                        
             packet.extend((0).to_bytes(4, byteorder='big'))  
             packet.extend('eof'.encode())
