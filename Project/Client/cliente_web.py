@@ -163,7 +163,7 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
 
 def random_delay():
     random_delay = random.uniform(0.01, 0.2)
-    time.sleep(random_delay)
+    sleep(random_delay)
 
 def calcular_checksum(data):
     return zlib.crc32(data)
