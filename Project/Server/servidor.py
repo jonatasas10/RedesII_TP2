@@ -18,7 +18,7 @@ def random_delay(media):
     
     media = 0.001 if media < 0.00001 else media
     print(media)
-    random_delay = random.uniform(0.0, media)
+    random_delay = random.uniform(0.01, media)
     sleep(random_delay)
 
 def calcular_rtt(est_rtt, dev_rtt, amostra):
@@ -59,6 +59,15 @@ def receber_ack(servidor_socket, resultado):
         
     resultado.put("ACK não recebido")
 
+def enviar_pacote(servidor_socket, endereco_cliente,packet, est_rtt):
+    if est_rtt is None:
+        sleep(0.001)
+    else:
+        sleep(est_rtt*0.9)    
+    servidor_socket.sendto(packet, endereco_cliente)
+
+
+
 # Função para listar os arquivos no diretório do servidor
 def listar_arquivos():
     return os.listdir(server_files_path)
@@ -84,7 +93,7 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
             numero_sequencia_base = 0
             proximo_numero_sequencia = 0
             arquivo.seek(numero_sequencia_base)
-            N = 20
+            N = 50
             tempo_chegada = [0 for x in range(N)]
             tempo = [0 for x in range(N)]
             window_size_inicial = N  # Define o tamanho da janela
@@ -93,6 +102,8 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
             est_rtt = None
             dev_rtt = None
             timeout = 0
+            quantidade_pct_enviado = 0
+            quantidade_pct_perdido = 0
             eof = False
 
             while True:
@@ -102,6 +113,8 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
                 
                 if window_size <= 0:
                     eof = True
+                else:
+                    eof = False # se tiver retransmissão tem que voltar
 
                 if tentativa_reenvio >= 10:
                     eof = True
@@ -125,12 +138,12 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
                         tempo_chegada = tempo_chegada[1:] + [time()]
                     #print(f"Enviando payload {i}")
                     if dados:                       
-                        
-                        if est_rtt is None:
-                            sleep(0.03)
-                        else:
-                            sleep(est_rtt*0.9)
-                        servidor_socket.sendto(packet, endereco_cliente)
+                        threading.Thread(target=enviar_pacote, args=[servidor_socket, endereco_cliente, packet, est_rtt]).start()
+                        #servidor_socket.sendto(packet, endereco_cliente)                        
+
+                        quantidade_pct_enviado += 1
+                        print(f"Número de sequência atual: {proximo_numero_sequencia}.")
+                        #input("")
                         proximo_numero_sequencia += 1
                 
                 resultado = queue.Queue()                    
@@ -148,7 +161,7 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
                     est_rtt, dev_rtt = calcular_rtt(est_rtt, dev_rtt, atraso)
                     timeout = 4*dev_rtt + est_rtt
                     print(f"RTT estimado: {round(est_rtt,2)}, DevRTT: {round(dev_rtt,2)}, timeout: {round(timeout,2)}")
-                    get_network_status(servidor_socket, endereco_cliente, len(packet), atraso)
+                    #get_network_status(servidor_socket, endereco_cliente, len(packet), atraso)
 
                 elif i == numero_sequencia_base + N:                        
                     tempo = timeout_ack(numero_sequencia_base, tempo_chegada, tempo, N)
@@ -157,27 +170,35 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
                     if tempo[indice] > timeout: #TODO verificar esse tempo 0.6s
                         print("ACK", numero_sequencia_base, "não recebido a tempo.")                      
                         tentativa_reenvio += 1
+                        quantidade_pct_perdido += 1
                         print(f"tentativa de reenvio: {tentativa_reenvio}")
-                        proximo_numero_sequencia =  numero_sequencia_base
+                        proximo_numero_sequencia =  numero_sequencia_base - 1
+                        #input("")
+                elif eof and resultado_ack != "ACK não recebido" and numero_sequencia_base != int(resultado_ack):
+                    eof = False                    
+                    proximo_numero_sequencia =  numero_sequencia_base - 1 if numero_sequencia_base > 0 else 0
                         
-                elif eof and numero_sequencia_base == proximo_numero_sequencia:                    
+                elif eof and numero_sequencia_base == proximo_numero_sequencia:    
+                                   
                     break
-                   
+            
             packet.extend((0).to_bytes(4, byteorder='big'))  
             packet.extend('eof'.encode())
             servidor_socket.sendto(packet, endereco_cliente)
-
+            """
             if tentativa_reenvio < 10:
                 print(f"Arquivo {nome_arquivo} enviado para {endereco_cliente}")
             else:
                 print(f"Arquivo {nome_arquivo} não enviado para {endereco_cliente}, timeout de envio")
-                
+            """   
             servidor_socket.setblocking(True)
+            print("QTD PCT ENVIADO:", quantidade_pct_enviado)
+            print("PERDIDO:", quantidade_pct_perdido)
 
     except FileNotFoundError:
         print(f"Arquivo {nome_arquivo} não encontrado no servidor.")
     except Exception as e:
-        print("algum erro", e)
+        print("Algum outro erro:", e)
         traceback.print_exc()
 
 # Função para lidar com as solicitações de um cliente
@@ -195,6 +216,8 @@ def lidar_com_cliente(servidor_socket, endereco_cliente):
         nome_arquivo = nome_arquivo.decode()
         print(nome_arquivo, endereco_cliente)
         # Envia o arquivo usando UDP
+        if nome_arquivo == "sair" or nome_arquivo == "start":
+            return
         enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket)
 
     except ConnectionResetError:
@@ -226,6 +249,7 @@ def main():
         print("\nEncerrando socket do servidor.")
         servidor_socket.close()
     finally:
+        
         servidor_socket.close()
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ PORTA_UDP = int(os.environ.get("UDP_PORT"))
 client_files_path = os.path.join(dir, os.environ.get("CLIENT_FILES_PATH"))
 
 def random_delay():
-    random_delay = random.uniform(0.0, 0.0001) #atraso entre 1ms - 50ms, ida e volta max 100ms
+    random_delay = random.uniform(0.002, 0.03) #atraso entre 10ms - 50ms, ida e volta max 100ms
     time.sleep(random_delay)
 
 def calcular_checksum(data):
@@ -29,6 +29,8 @@ def receber_arquivo(udp_socket, nome_arquivo):
     
     numero_sequencia_esperado = 0
     buffer = 1500
+    tam_arquivo = 0
+    tam_final_pacote = 0
     with open(os.path.join(client_files_path, nome_arquivo), 'wb') as arquivo:
         tempo = time.time()
         while True:
@@ -36,8 +38,7 @@ def receber_arquivo(udp_socket, nome_arquivo):
                 tempo_inicial = time.time()
                 
                 #random_delay() # TODO: DELAY AQUI
-                packet, address = udp_socket.recvfrom(buffer)
-                
+                packet, address = udp_socket.recvfrom(buffer)                                
                 sequence_number_bytes = packet[:4]  # Extrai apenas os 4 primeiros bytes
                 checksum_recebido = int.from_bytes(packet[4:8], byteorder='big')
                 checkum = calcular_checksum(packet[8:])                                
@@ -50,11 +51,13 @@ def receber_arquivo(udp_socket, nome_arquivo):
                     print(f"recebido {sequence_number} {numero_sequencia_esperado}")
                     arquivo.write(packet[8:])                    
                     tempo_final = time.time()
-                    tam_pacote = len(packet)
+                    tam_pacote = len(packet[8:])
+                    tam_arquivo += tam_pacote
+                    tam_final_pacote += len(packet) #para cálculo da vazão
                     atraso = tempo_final - tempo_inicial
-                    velocidade_download(address, tam_pacote, atraso)
+                    #velocidade_download(address, tam_pacote, atraso)
 
-                    #random_delay() # TODO: DELAY AQUI
+                    random_delay() # TODO: DELAY AQUI
                     udp_socket.sendto(str(numero_sequencia_esperado).encode(), address)
                     
                     numero_sequencia_esperado += 1 
@@ -66,7 +69,11 @@ def receber_arquivo(udp_socket, nome_arquivo):
             except socket.timeout:
                 print("Timeout. Conexão encerrada.")
                 break
-        print(f"Tempo final para enviar o arquivo: {round(time.time() - tempo, 2)} segundos")
+        tempo_envio = time.time() - tempo
+        print(f"Tempo final para enviar o arquivo: {round(tempo_envio, 2)} segundos")
+    vazao = (tam_final_pacote*8) / (tempo_envio*10**6)
+    print(f"Tamanho do arquivo: {tam_arquivo} bytes.")
+    print(f"Vazão: {round(vazao,3)} Mbps.")
     print(f"Arquivo {nome_arquivo} recebido com sucesso.")
     #udp_socket.close()
 
@@ -129,6 +136,8 @@ def client():
 
     except Exception as e:
         print(f"Erro: {e}")
+    except KeyboardInterrupt:
+        cliente_socket.sendto("sair".encode(), (HOST, PORTA_UDP))
     finally:
         cliente_socket.close()
 
