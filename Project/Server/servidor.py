@@ -4,6 +4,7 @@ import threading
 from dotenv import load_dotenv
 from numpy import random
 import zlib
+import numpy as np
 
 from time import time, sleep
 load_dotenv()
@@ -13,19 +14,35 @@ server_files_path = os.path.join(dir, os.environ.get("SERVER_FILES_PATH"))
 HOST = os.environ.get("SERVER_HOST")
 PORTA_UDP = int(os.environ.get("UDP_PORT"))
 
-def random_delay():
-    random_delay = random.uniform(0, 0.2)
+def random_delay(media):
+    
+    media = 0.001 if media < 0.00001 else media
+    print(media)
+    random_delay = random.uniform(0.0, media)
     sleep(random_delay)
+
+def calcular_rtt(est_rtt, dev_rtt, amostra):
+    alpha = 0.125
+    beta = 0.125
+    if est_rtt is None:
+        est_rtt = amostra
+    else:
+        est_rtt = (1 - alpha)*est_rtt + alpha*amostra
+    if dev_rtt is None:
+        dev_rtt = abs(amostra - est_rtt)
+    else:
+        dev_rtt = (1 - beta)*dev_rtt + beta*abs(amostra - est_rtt)
+    return est_rtt, dev_rtt
 
 def calcular_checksum(data):
     return zlib.crc32(data)
 
 def get_network_status(servidor_socket, endereco_cliente, tam_pacote, atraso):
-        print(f"Connection from {endereco_cliente}")
+        #print(f"Connection from {endereco_cliente}")
     
-        atraso = 0.1 if atraso == 0 else atraso
+        atraso = 0.000001 if atraso == 0 else atraso #para não dar erro de divisão por 0
         download_speed = tam_pacote*8 / atraso
-        download_speed /= 10^6
+        download_speed /= 10**6
         print(f"Connection delay: {atraso} seconds")
         print(f"Download speed: {round(download_speed, 2)} Mbps")
 
@@ -67,13 +84,15 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
             numero_sequencia_base = 0
             proximo_numero_sequencia = 0
             arquivo.seek(numero_sequencia_base)
-            N = 10
+            N = 20
             tempo_chegada = [0 for x in range(N)]
             tempo = [0 for x in range(N)]
             window_size_inicial = N  # Define o tamanho da janela
             window_start = 0  # Começa a janela em 0
-            #threshold = 8  # Define o limite de reenvio do payload 
             tentativa_reenvio = 0
+            est_rtt = None
+            dev_rtt = None
+            timeout = 0
             eof = False
 
             while True:
@@ -105,10 +124,13 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
                     else: 
                         tempo_chegada = tempo_chegada[1:] + [time()]
                     #print(f"Enviando payload {i}")
-                    if dados:
+                    if dados:                       
                         
+                        if est_rtt is None:
+                            sleep(0.03)
+                        else:
+                            sleep(est_rtt*0.9)
                         servidor_socket.sendto(packet, endereco_cliente)
-                        print("Índice da janela enviada:", i)
                         proximo_numero_sequencia += 1
                 
                 resultado = queue.Queue()                    
@@ -117,31 +139,30 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
                 
                 if  resultado_ack != "ACK não recebido" and not eof:
                     tentativa_reenvio = 0
-
+                    
                     numero_sequencia_base = int(resultado_ack) + 1
                     window_start = numero_sequencia_base*buffer                    
                     tempo = timeout_ack(numero_sequencia_base - 1, tempo_chegada, tempo, N)
                     
-                    print("TEMPO DE RESPOSTA:", tempo)
-                    atraso = tempo[numero_sequencia_base - 1] if numero_sequencia_base < N else tempo[N-1]
+                    atraso = tempo[numero_sequencia_base - 1] if numero_sequencia_base < N else tempo[N-1]                                        
+                    est_rtt, dev_rtt = calcular_rtt(est_rtt, dev_rtt, atraso)
+                    timeout = 4*dev_rtt + est_rtt
+                    print(f"RTT estimado: {round(est_rtt,2)}, DevRTT: {round(dev_rtt,2)}, timeout: {round(timeout,2)}")
                     get_network_status(servidor_socket, endereco_cliente, len(packet), atraso)
 
                 elif i == numero_sequencia_base + N:                        
                     tempo = timeout_ack(numero_sequencia_base, tempo_chegada, tempo, N)
-
                     indice = numero_sequencia_base if numero_sequencia_base < N else N - 1
-                    if tempo[indice] > 2: #TODO verificar esse tempo 0.6s
-                        print("ACK", numero_sequencia_base, "não recebido a tempo.")
-                        
+                    timeout = 5 if timeout is None else timeout
+                    if tempo[indice] > timeout: #TODO verificar esse tempo 0.6s
+                        print("ACK", numero_sequencia_base, "não recebido a tempo.")                      
                         tentativa_reenvio += 1
                         print(f"tentativa de reenvio: {tentativa_reenvio}")
-
-                        proximo_numero_sequencia = numero_sequencia_base
-
-                        print("Tempo atual - retransmissão:", tempo)
-                elif eof and numero_sequencia_base == proximo_numero_sequencia:
+                        proximo_numero_sequencia =  numero_sequencia_base
+                        
+                elif eof and numero_sequencia_base == proximo_numero_sequencia:                    
                     break
-                                       
+                   
             packet.extend((0).to_bytes(4, byteorder='big'))  
             packet.extend('eof'.encode())
             servidor_socket.sendto(packet, endereco_cliente)
@@ -193,8 +214,11 @@ def main():
             mensagem, endereco_cliente = servidor_socket.recvfrom(1024)
             descartar = mensagem.isdigit()
             
-            if not descartar:
+            if not descartar and "start" in mensagem.decode():
+                print(descartar, mensagem)
                 lidar_com_cliente(servidor_socket, endereco_cliente)
+            
+
             else:
                 print("Pacote descartado.")
 

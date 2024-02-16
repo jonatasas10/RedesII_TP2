@@ -13,16 +13,15 @@ PORTA_UDP = int(os.environ.get("UDP_PORT"))
 client_files_path = os.path.join(dir, os.environ.get("CLIENT_FILES_PATH"))
 
 def random_delay():
-    random_delay = random.uniform(0.01, 0.2)
+    random_delay = random.uniform(0.0, 0.0001) #atraso entre 1ms - 50ms, ida e volta max 100ms
     time.sleep(random_delay)
 
 def calcular_checksum(data):
     return zlib.crc32(data)
 
 def velocidade_download(endereco_servidor, tam_pacote, atraso):
-        print(f"Conexão de {endereco_servidor}")                
-        download_speed = tam_pacote*8 / atraso
-        download_speed /= 10^6
+        #print(f"Conexão de {endereco_servidor}")                
+        download_speed = tam_pacote*8 / (atraso*10**6)
         print(f"\nDelay de conexão: {round(atraso,2)} segundos")
         print(f"Velocidade de download: {round(download_speed, 2)} Mbps\n")
 
@@ -31,10 +30,12 @@ def receber_arquivo(udp_socket, nome_arquivo):
     numero_sequencia_esperado = 0
     buffer = 1500
     with open(os.path.join(client_files_path, nome_arquivo), 'wb') as arquivo:
+        tempo = time.time()
         while True:
             try:
                 tempo_inicial = time.time()
-                random_delay() # TODO: DELAY AQUI
+                
+                #random_delay() # TODO: DELAY AQUI
                 packet, address = udp_socket.recvfrom(buffer)
                 
                 sequence_number_bytes = packet[:4]  # Extrai apenas os 4 primeiros bytes
@@ -51,10 +52,9 @@ def receber_arquivo(udp_socket, nome_arquivo):
                     tempo_final = time.time()
                     tam_pacote = len(packet)
                     atraso = tempo_final - tempo_inicial
-                   # print(atraso)
                     velocidade_download(address, tam_pacote, atraso)
 
-                    random_delay() # TODO: DELAY AQUI
+                    #random_delay() # TODO: DELAY AQUI
                     udp_socket.sendto(str(numero_sequencia_esperado).encode(), address)
                     
                     numero_sequencia_esperado += 1 
@@ -62,10 +62,11 @@ def receber_arquivo(udp_socket, nome_arquivo):
                     print(f"Falha {sequence_number} != {numero_sequencia_esperado}")
                     udp_socket.sendto(str(numero_sequencia_esperado).encode(), address)
 
+               
             except socket.timeout:
                 print("Timeout. Conexão encerrada.")
                 break
-
+        print(f"Tempo final para enviar o arquivo: {round(time.time() - tempo, 2)} segundos")
     print(f"Arquivo {nome_arquivo} recebido com sucesso.")
     #udp_socket.close()
 
