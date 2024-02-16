@@ -41,7 +41,7 @@ def main():
                     pass
                 elif funcao == "auth":
                     usuario, senha = nome_arquivo.split("|")
-                    print(f"Autenticando {usuario}    {"*"*len(senha)}...")
+                    #print(f"Autenticando usuario: {usuario}")
                     
                     if USUARIO == usuario and SENHA == senha:
                         servidor_socket.sendto("ok".encode(), endereco_cliente)
