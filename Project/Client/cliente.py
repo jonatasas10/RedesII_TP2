@@ -1,135 +1,105 @@
-import socket, select
+import socket, select, traceback, queue
 import os
 from dotenv import load_dotenv
-import pickle, time
+from time import sleep, time
 from numpy import random
 import zlib
+from flask import Flask, jsonify, redirect, request, render_template, url_for
+import threading
+from client_server_utils import enviar_arquivo, receber_arquivo
+
+
+
 load_dotenv()
 
+app = Flask(__name__)
 # Configurações do cliente
 dir = os.path.dirname(__file__)
 HOST = os.environ.get("SERVER_HOST")
 PORTA_UDP = int(os.environ.get("UDP_PORT"))
 client_files_path = os.path.join(dir, os.environ.get("CLIENT_FILES_PATH"))
 
-def random_delay():
-    random_delay = random.uniform(0.01, 0.2)
-    time.sleep(random_delay)
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-def calcular_checksum(data):
-    return zlib.crc32(data)
+@app.route('/file_list', methods=['GET'])
+def get_file_list():
+    cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-def velocidade_download(endereco_servidor, tam_pacote, atraso):
-        print(f"Conexão de {endereco_servidor}")                
-        download_speed = tam_pacote*8 / atraso
-        download_speed /= 10^6
-        print(f"\nDelay de conexão: {round(atraso,2)} segundos")
-        print(f"Velocidade de download: {round(download_speed, 2)} Mbps\n")
+    operacao = f"listar _"
+    cliente_socket.sendto(operacao.encode(), (HOST, PORTA_UDP))
+    # Recebe a lista de arquivos do servidor
+    arquivos_disponiveis = cliente_socket.recv(4096).decode().split("\n")
 
-def receber_arquivo(udp_socket, nome_arquivo):
-    
-    numero_sequencia_esperado = 0
-    buffer = 1500
-    with open(os.path.join(client_files_path, nome_arquivo), 'wb') as arquivo:
-        while True:
-            try:
-                tempo_inicial = time.time()
-                random_delay() # TODO: DELAY AQUI
-                packet, address = udp_socket.recvfrom(buffer)
-                
-                sequence_number_bytes = packet[:4]  # Extrai apenas os 4 primeiros bytes
-                checksum_recebido = int.from_bytes(packet[4:8], byteorder='big')
-                checkum = calcular_checksum(packet[8:])                                
-                sequence_number = int.from_bytes(sequence_number_bytes, byteorder='big')
+    #cliente_socket.sendto("a".encode(), (HOST, PORTA_UDP))
+    cliente_socket.close()
+    return jsonify(arquivos_disponiveis)
 
-                if  'eof'.encode('utf8') in packet[4:] and len(packet) < 80:                    
-                    break
+@app.route('/download', methods=['POST'])
+def download():
+    file_name = request.form['file_name']
+    cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-                if sequence_number == numero_sequencia_esperado and checksum_recebido == checkum:
-                    print(f"recebido {sequence_number} {numero_sequencia_esperado}")
-                    arquivo.write(packet[8:])                    
-                    tempo_final = time.time()
-                    tam_pacote = len(packet)
-                    atraso = tempo_final - tempo_inicial
-                   # print(atraso)
-                    velocidade_download(address, tam_pacote, atraso)
+    operacao = f"download {file_name}"
+    cliente_socket.sendto(operacao.encode(), (HOST, PORTA_UDP))
 
-                    random_delay() # TODO: DELAY AQUI
-                    udp_socket.sendto(str(numero_sequencia_esperado).encode(), address)
-                    
-                    numero_sequencia_esperado += 1 
-                else:
-                    print(f"Falha {sequence_number} != {numero_sequencia_esperado}")
-                    udp_socket.sendto(str(numero_sequencia_esperado).encode(), address)
+    # Recebe a lista de arquivos do servidor
+    #arquivos_disponiveis = cliente_socket.recv(4096).decode().split("\n")
+    #cliente_socket.sendto(file_name.encode(), (HOST, PORTA_UDP))
 
-            except socket.timeout:
-                print("Timeout. Conexão encerrada.")
-                break
+    receber_arquivo(cliente_socket, file_name)
 
-    print(f"Arquivo {nome_arquivo} recebido com sucesso.")
-    #udp_socket.close()
+    cliente_socket.close()
+    return f'Arquivo {file_name} recebido com sucesso.'
 
-# Função para lidar com as mensagens do servidor
-def lidar_com_mensagens(cliente_socket):
-    try:
-        while True:
-            mensagem = cliente_socket.recv(1500).decode()
-            print(mensagem)
-    except ConnectionResetError:
-        print("Conexão com o servidor foi encerrada.")
 
-# Inicia a thread para lidar com mensagens do servidor
-def main():
-    try:
-        # Criação do socket UDP do cliente
-        cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        cliente_socket.sendto("start".encode(), (HOST, PORTA_UDP))
-        # Recebe a lista de arquivos do servidor # aqui estava dando erro logo aops recebimento, passou para cima.
-        arquivos_disponiveis = cliente_socket.recv(1500).decode()
+# Upload de arquivos
+@app.route('/upload_page')
+def upload_page():
+    return render_template('upload.html')
 
-        nome_arquivo = "Tp02.txt"#"TP02D.pdf"
+@app.route('/client_file_list', methods=['GET'])
+def get_client_file_list():
+    arquivos_para_upload = os.listdir(client_files_path)
+    return jsonify(arquivos_para_upload)
 
-        cliente_socket.sendto(nome_arquivo.encode(), (HOST, PORTA_UDP))
-        receber_arquivo(cliente_socket, nome_arquivo)
-        print("recebido")
+@app.route('/upload', methods=['POST'])
+def upload():
+    upload_file_name = request.form['upload_file_name']
+    cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-    except Exception as e:
-        print(f"Erro: {e}")
-    finally:
-        cliente_socket.close()
+    operacao = f"upload {upload_file_name}"
+    cliente_socket.sendto(operacao.encode(), (HOST, PORTA_UDP))
 
-def client():
-    try:
-        while True:
-            # Criação do socket UDP do cliente
-            cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            cliente_socket.sendto("start".encode(), (HOST, PORTA_UDP))
-            # Recebe a lista de arquivos do servidor # aqui estava dando erro logo aops recebimento, passou para cima.
-            arquivos_disponiveis = cliente_socket.recv(1500).decode()
 
-            print(arquivos_disponiveis)
+    enviar_arquivo(upload_file_name, (HOST, PORTA_UDP), cliente_socket)
 
-            nome_arquivo = input("Nome do arquivo, sair ou upload: ")
-            if nome_arquivo == "sair":
-                break
+    cliente_socket.close()
+    return f'Arquivo {upload_file_name} enviado com sucesso.'
 
-            if nome_arquivo == "upload":
-                # auth then upload
-                arquivos_para_upload = os.listdir(client_files_path)
-                pass
+@app.route('/auth_page')
+def auth_page():
+    return render_template('auth.html')
 
-            while nome_arquivo not in arquivos_disponiveis:
-                print("Arquivo indisponível. Tente novamente.")
-                nome_arquivo = input("Nome do arquivo: ")
+@app.route('/auth', methods=['POST'])
+def auth():
+    usuario = request.form['user']
+    senha = request.form['password']
 
-            cliente_socket.sendto(nome_arquivo.encode(), (HOST, PORTA_UDP))
-            receber_arquivo(cliente_socket, nome_arquivo)
-            print("Recebimento concluido.")
+    cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-    except Exception as e:
-        print(f"Erro: {e}")
-    finally:
-        cliente_socket.close()
+    auth = f"{usuario}|{senha}"
+    operacao = f"auth {auth}"
+    cliente_socket.sendto(operacao.encode(), (HOST, PORTA_UDP))
+
+    resposta = cliente_socket.recv(4096).decode()
+    cliente_socket.close()
+
+    if resposta == "ok":
+        return render_template('upload.html')
+    else:
+        return redirect(url_for('index'))
 
 if __name__ == "__main__":
-    client()
+    app.run()
