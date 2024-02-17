@@ -83,23 +83,36 @@ def receber_arquivo(udp_socket, nome_arquivo):
                 break
         tempo_envio = time.time() - tempo
         print(f"Tempo final para enviar o arquivo: {round(tempo_envio, 2)} segundos")
+    
+    vazao = (tam_final_pacote*8) / (tempo_envio*10**6)
+    print(f"Tamanho do arquivo: {tam_arquivo} bytes.")
+    print(f"Vazão: {round(vazao,3)} Mbps.")    
+    print(f"Arquivo {nome_arquivo} recebido com sucesso. \n")
 
     md5_file = calcular_md5(os.path.join(client_files_path, nome_arquivo))
     print(f"MD5 HASH Calculado: {md5_file}")
+    
+    while True:
+        packet, address = udp_socket.recvfrom(buffer) 
+        if "#checksum".encode() in packet[0:10]: #descartando pacotes retransmitidos anteriores        
+            break
+        
+    checksum_recebido = int.from_bytes(packet[9:13], byteorder='big')  
+    md5_hash_recebido = None
+    checksum = calcular_checksum(md5_file.encode())
 
-    packet, address = udp_socket.recvfrom(buffer)   
-    md5_hash_recebido = packet.decode()
+    if checksum == checksum_recebido:                
+        md5_hash_recebido = packet[13:].decode()
+    else:
+        print(f"Checksum não é válido. Recebido: {checksum_recebido}, calculado: {checksum}")
+        
     
     print("MD5 recebido:", md5_hash_recebido)
     if md5_file == md5_hash_recebido:
         print("Os hashes dos arquivos são iguais.\n")
     else:
         print("Os hashes dos arquivos são diferentes.\n")
-    vazao = (tam_final_pacote*8) / (tempo_envio*10**6)
-    print(f"Tamanho do arquivo: {tam_arquivo} bytes.")
-    print(f"Vazão: {round(vazao,3)} Mbps.")
-    print("COUNT", count)
-    print(f"Arquivo {nome_arquivo} recebido com sucesso.")
+    
     #udp_socket.close()
 
 # Função para lidar com as mensagens do servidor

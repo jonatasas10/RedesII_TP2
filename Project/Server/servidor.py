@@ -82,7 +82,7 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
             numero_sequencia_base = 0
             proximo_numero_sequencia = 0
             arquivo.seek(numero_sequencia_base)
-            N = 100
+            N = 10
             
             tentativa_reenvio = 0
             est_rtt = None
@@ -161,7 +161,7 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
                         total_perdidos += (proximo_numero_sequencia - numero_sequencia_base)
                         #timeout = timeout + 0.005                                             
                         #est_rtt += 0.005
-                        N = 100
+                        N = N // 2
                         proximo_numero_sequencia =  numero_sequencia_base          
                         eof = False
                 
@@ -172,9 +172,12 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
             print("Quantidade de pacotes enviados:", quantidade_pct_enviado)
             print("Quantidade de pacotes perdidos:", total_perdidos)
             print(f"Proporção: {round((total_perdidos/quantidade_pct_enviado)*100,2)}%")
-            
-            print("MD% HASH", md5_file)
-            servidor_socket.sendto(md5_file.encode(), endereco_cliente)
+            md5_hash = bytearray()
+            md5_checksum = calcular_checksum(md5_file.encode())
+            md5_hash.extend(b"#checksum")
+            md5_hash.extend(md5_checksum.to_bytes(4, byteorder='big'))           
+            md5_hash.extend(md5_file.encode())            
+            servidor_socket.sendto(md5_hash, endereco_cliente)
 
     except FileNotFoundError:
         print(f"Arquivo {nome_arquivo} não encontrado no servidor.")
