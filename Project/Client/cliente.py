@@ -6,7 +6,7 @@ from numpy import random
 import zlib
 from flask import Flask, jsonify, redirect, request, render_template, url_for
 import threading
-from client_server_utils import enviar_arquivo, receber_arquivo
+from client_server_utils import enviar_arquivo, receber_arquivo, listar_arquivos
 
 
 
@@ -25,6 +25,7 @@ def index():
 
 @app.route('/file_list', methods=['GET'])
 def get_file_list():
+    global arquivos_disponiveis
     cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     operacao = f"listar _"
@@ -32,7 +33,6 @@ def get_file_list():
     # Recebe a lista de arquivos do servidor
     arquivos_disponiveis = cliente_socket.recv(4096).decode().split("\n")
 
-    #cliente_socket.sendto("a".encode(), (HOST, PORTA_UDP))
     cliente_socket.close()
     return jsonify(arquivos_disponiveis)
 
@@ -41,12 +41,16 @@ def download():
     file_name = request.form['file_name']
     cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
+
+    if file_name not in arquivos_disponiveis:
+        operacao = f"nofile  "
+        cliente_socket.sendto(operacao.encode(), (HOST, PORTA_UDP))
+        cliente_socket.close()
+        print(f'Arquivo {file_name} inexistente no servidor.')
+        return f'Arquivo {file_name} inexistente no servidor.'
+
     operacao = f"download {file_name}"
     cliente_socket.sendto(operacao.encode(), (HOST, PORTA_UDP))
-
-    # Recebe a lista de arquivos do servidor
-    #arquivos_disponiveis = cliente_socket.recv(4096).decode().split("\n")
-    #cliente_socket.sendto(file_name.encode(), (HOST, PORTA_UDP))
 
     receber_arquivo(cliente_socket, file_name)
 
@@ -69,9 +73,15 @@ def upload():
     upload_file_name = request.form['upload_file_name']
     cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
+    if upload_file_name not in listar_arquivos():
+        operacao = f"nofile  "
+        cliente_socket.sendto(operacao.encode(), (HOST, PORTA_UDP))
+        cliente_socket.close()
+        print(f'Arquivo {upload_file_name} inexistente no cliente.')
+        return f'Arquivo {upload_file_name} inexistente no cliente.'
+
     operacao = f"upload {upload_file_name}"
     cliente_socket.sendto(operacao.encode(), (HOST, PORTA_UDP))
-
 
     enviar_arquivo(upload_file_name, (HOST, PORTA_UDP), cliente_socket)
 
