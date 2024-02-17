@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cliente</title>
+</head>
+<body>
+    <h2>Arquivos disponíveis</h2>
+    <ul id="file_list"></ul>
+
+    <h2>Baixar arquivo</h2>
+    <form action="/download" method="post">
+        <label for="file_name">File Name:</label>
+        <input type="text" id="file_name" name="file_name">
+        <button type="submit">Download</button>
+    </form>
+
+    <form action="/auth_page" method="get">
+        <button type="submit">Realizar Upload</button>
+    </form>
+
+
+    <script>
+        fetch('/file_list')
+            .then(response => response.json())
+            .then(data => {
+                const fileList = document.getElementById('file_list');
+                data.forEach(file => {
+                    const listItem = document.createElement('li');
+                    listItem.textContent = file;
+                    fileList.appendChild(listItem);
+                });
+            });
+    </script>
+ 
+</body>
+</html>
