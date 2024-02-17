@@ -5,21 +5,24 @@ import pickle, time
 from numpy import random
 import zlib
 load_dotenv()
-
+import hashlib
 # Configurações do cliente
 dir = os.path.dirname(__file__)
 HOST = os.environ.get("SERVER_HOST")
 PORTA_UDP = int(os.environ.get("UDP_PORT"))
 client_files_path = os.path.join(dir, os.environ.get("CLIENT_FILES_PATH"))
 
-def random_delay():
-    random_delay = random.uniform(0.002, 0.03) #atraso entre 10ms - 50ms, ida e volta max 100ms
-    time.sleep(random_delay)
-
+def calcular_md5(arquivo):   
+    md5_hash = None
+    with open(arquivo,'rb') as arquivo:
+        arquivo_md5 = arquivo.read()            
+        md5_hash = hashlib.md5(arquivo_md5).hexdigest()
+    return md5_hash   
+        
 def calcular_checksum(data):
     return zlib.crc32(data)
 
-def velocidade_download(endereco_servidor, tam_pacote, atraso):
+def velocidade_download(tam_pacote, atraso):
         #print(f"Conexão de {endereco_servidor}")                
         download_speed = tam_pacote*8 / (atraso*10**6)
         print(f"\nDelay de conexão: {round(atraso,2)} segundos")
@@ -31,39 +34,48 @@ def receber_arquivo(udp_socket, nome_arquivo):
     buffer = 1500
     tam_arquivo = 0
     tam_final_pacote = 0
+    count = 0
+    eof = False
     with open(os.path.join(client_files_path, nome_arquivo), 'wb') as arquivo:
         tempo = time.time()
         while True:
             try:
                 tempo_inicial = time.time()
-                
-                #random_delay() # TODO: DELAY AQUI
-                packet, address = udp_socket.recvfrom(buffer)                                
+                                
+                packet, address = udp_socket.recvfrom(buffer)   
+                count+= 1                             
                 sequence_number_bytes = packet[:4]  # Extrai apenas os 4 primeiros bytes
                 checksum_recebido = int.from_bytes(packet[4:8], byteorder='big')
-                checkum = calcular_checksum(packet[8:])                                
                 sequence_number = int.from_bytes(sequence_number_bytes, byteorder='big')
-
-                if  'eof'.encode('utf8') in packet[4:] and len(packet) < 80:                    
-                    break
+                if "#fim".encode() in packet[8:12]:# and len(packet) < 80:   
+                    eof = True  if sequence_number == numero_sequencia_esperado else eof
+                    checkum = calcular_checksum(packet[12:])  
+                else:
+                    checkum = calcular_checksum(packet[8:])                                                                                               
 
                 if sequence_number == numero_sequencia_esperado and checksum_recebido == checkum:
                     print(f"recebido {sequence_number} {numero_sequencia_esperado}")
-                    arquivo.write(packet[8:])                    
+                    arquivo.write(packet[8:]) if eof == False else arquivo.write(packet[12:])               
                     tempo_final = time.time()
-                    tam_pacote = len(packet[8:])
+                    tam_pacote = len(packet[8:]) if eof == False else len(packet[12:])
                     tam_arquivo += tam_pacote
                     tam_final_pacote += len(packet) #para cálculo da vazão
                     atraso = tempo_final - tempo_inicial
                     #velocidade_download(address, tam_pacote, atraso)
 
-                    random_delay() # TODO: DELAY AQUI
-                    udp_socket.sendto(str(numero_sequencia_esperado).encode(), address)
-                    
+                    #random_delay() # TODO: DELAY AQUI
+                    if eof == False:
+                        udp_socket.sendto(str(numero_sequencia_esperado).encode(), address)
+                    else:                       
+                        udp_socket.sendto("#eof".encode(), address)
+                        break
+                   
                     numero_sequencia_esperado += 1 
-                else:
+                    
+                    
+                else:                    
                     print(f"Falha {sequence_number} != {numero_sequencia_esperado}")
-                    udp_socket.sendto(str(numero_sequencia_esperado).encode(), address)
+                    udp_socket.sendto(f"{numero_sequencia_esperado-1}".encode(), address)
 
                
             except socket.timeout:
@@ -71,9 +83,22 @@ def receber_arquivo(udp_socket, nome_arquivo):
                 break
         tempo_envio = time.time() - tempo
         print(f"Tempo final para enviar o arquivo: {round(tempo_envio, 2)} segundos")
+
+    md5_file = calcular_md5(os.path.join(client_files_path, nome_arquivo))
+    print(f"MD5 HASH Calculado: {md5_file}")
+
+    packet, address = udp_socket.recvfrom(buffer)   
+    md5_hash_recebido = packet.decode()
+    
+    print("MD5 recebido:", md5_hash_recebido)
+    if md5_file == md5_hash_recebido:
+        print("Os hashes dos arquivos são iguais.\n")
+    else:
+        print("Os hashes dos arquivos são diferentes.\n")
     vazao = (tam_final_pacote*8) / (tempo_envio*10**6)
     print(f"Tamanho do arquivo: {tam_arquivo} bytes.")
     print(f"Vazão: {round(vazao,3)} Mbps.")
+    print("COUNT", count)
     print(f"Arquivo {nome_arquivo} recebido com sucesso.")
     #udp_socket.close()
 

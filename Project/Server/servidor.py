@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from numpy import random
 import zlib
 import numpy as np
+import hashlib
 
 from time import time, sleep
 load_dotenv()
@@ -14,12 +15,12 @@ server_files_path = os.path.join(dir, os.environ.get("SERVER_FILES_PATH"))
 HOST = os.environ.get("SERVER_HOST")
 PORTA_UDP = int(os.environ.get("UDP_PORT"))
 
-def random_delay(media):
-    
-    media = 0.001 if media < 0.00001 else media
-    print(media)
-    random_delay = random.uniform(0.01, media)
-    sleep(random_delay)
+def calcular_md5(arquivo):   
+    md5_hash = None
+    with open(arquivo,'rb') as arquivo:
+        arquivo_md5 = arquivo.read()            
+        md5_hash = hashlib.md5(arquivo_md5).hexdigest()
+    return md5_hash  
 
 def calcular_rtt(est_rtt, dev_rtt, amostra):
     alpha = 0.125
@@ -53,7 +54,7 @@ def receber_ack(servidor_socket, resultado):
     for s in ler_socket:
         if s is servidor_socket:
             dados, _ = servidor_socket.recvfrom(100)
-            ACK = int(dados.decode('utf8'))
+            ACK = int(dados.decode('utf8')) if dados.isdigit() else dados.decode('utf8')
             print("ACK recebido", ACK)
             resultado.put(ACK)
         
@@ -61,9 +62,9 @@ def receber_ack(servidor_socket, resultado):
 
 def enviar_pacote(servidor_socket, endereco_cliente,packet, est_rtt):
     if est_rtt is None:
-        sleep(0.001)
+        sleep(0.005)
     else:
-        sleep(est_rtt*0.9)    
+        sleep(est_rtt)    
     servidor_socket.sendto(packet, endereco_cliente)
 
 
@@ -72,128 +73,108 @@ def enviar_pacote(servidor_socket, endereco_cliente,packet, est_rtt):
 def listar_arquivos():
     return os.listdir(server_files_path)
 
-def timeout_ack(numero_sequencia_base, tempo_chegada, tempo, N):
-    
-    if numero_sequencia_base < N:       
-        tempo_ack = (time() - tempo_chegada[numero_sequencia_base])        
-        tempo_ack = round(tempo_ack,3)                
-        tempo[numero_sequencia_base] = tempo_ack 
-    else: 
-        tempo_ack = (time() - tempo_chegada[N-1])
-        tempo_ack = round(tempo_ack,3)  
-        tempo = tempo[1:] + [tempo_ack]
-    
-    return tempo
-
 # Função para enviar um arquivo para o cliente usando UDP
 def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
     try:
-        with open(os.path.join(server_files_path, nome_arquivo), 'rb') as arquivo:  
+        with open(os.path.join(server_files_path, nome_arquivo), 'rb') as arquivo: 
+            md5_file = calcular_md5(os.path.join(server_files_path, nome_arquivo)) 
             buffer = 1450         
             numero_sequencia_base = 0
             proximo_numero_sequencia = 0
             arquivo.seek(numero_sequencia_base)
-            N = 50
-            tempo_chegada = [0 for x in range(N)]
-            tempo = [0 for x in range(N)]
-            window_size_inicial = N  # Define o tamanho da janela
-            window_start = 0  # Começa a janela em 0
+            N = 100
+            
             tentativa_reenvio = 0
             est_rtt = None
             dev_rtt = None
-            timeout = 0
+            timeout = None
             quantidade_pct_enviado = 0
             quantidade_pct_perdido = 0
             eof = False
-
-            while True:
-                bytes_restantes = os.path.getsize(os.path.join(server_files_path, nome_arquivo)) - window_start
-                #print(f"Remaining bytes: {bytes_restantes}")
-                window_size = min(window_size_inicial, bytes_restantes)
+            tempo_dict = {}
+            chegada_dict = {}
+            total_perdidos = 0
+            
+            ultimo_ack = None
+            while True:                
                 
-                if window_size <= 0:
-                    eof = True
-                else:
-                    eof = False # se tiver retransmissão tem que voltar
-
-                if tentativa_reenvio >= 10:
-                    eof = True
-                    break
-
-                i = proximo_numero_sequencia
-                if proximo_numero_sequencia < numero_sequencia_base + N and not eof:                
+                i = proximo_numero_sequencia                
+                if (proximo_numero_sequencia < numero_sequencia_base + N) and eof is False:                
                     
                     arquivo.seek(i * buffer)  # Move o ponteiro do arquivo para o byte correspondente
                     packet = bytearray()
                     packet.extend(i.to_bytes(4, byteorder='big')) 
                     dados = arquivo.read(buffer) # Adiciona o numero de sequência ao pacote
-                    checksum = calcular_checksum(dados)
-                    
+                    checksum = calcular_checksum(dados)                    
                     packet.extend(checksum.to_bytes(4, byteorder='big'))
+                    if len(dados) < 1450:   
+                        packet.extend(b"#fim")                                               
+                        eof = True
                     packet.extend(dados)  
+                    chegada_dict[i] = time()
+                                                                
+                    threading.Thread(target=enviar_pacote, args=[servidor_socket, endereco_cliente, packet, est_rtt]).start()                                             
+                    quantidade_pct_enviado += 1                        
+                    proximo_numero_sequencia = proximo_numero_sequencia + 1 #if len(dados) == 1450 else proximo_numero_sequencia
                     
-                    if i < N:                           
-                        tempo_chegada[i] = time()
-                    else: 
-                        tempo_chegada = tempo_chegada[1:] + [time()]
-                    #print(f"Enviando payload {i}")
-                    if dados:                       
-                        threading.Thread(target=enviar_pacote, args=[servidor_socket, endereco_cliente, packet, est_rtt]).start()
-                        #servidor_socket.sendto(packet, endereco_cliente)                        
-
-                        quantidade_pct_enviado += 1
-                        print(f"Número de sequência atual: {proximo_numero_sequencia}.")
-                        #input("")
-                        proximo_numero_sequencia += 1
-                
                 resultado = queue.Queue()                    
                 threading.Thread(target=receber_ack, args=[servidor_socket, resultado]).start()
                 resultado_ack = resultado.get()
-                
-                if  resultado_ack != "ACK não recebido" and not eof:
+
+                if  resultado_ack not in ["ACK não recebido", "#eof", "nack"] and numero_sequencia_base == int(resultado_ack):
                     tentativa_reenvio = 0
+                    N  = N + 1 if N < 128 else N
+                    tempo_dict[numero_sequencia_base] = time()
                     
-                    numero_sequencia_base = int(resultado_ack) + 1
-                    window_start = numero_sequencia_base*buffer                    
-                    tempo = timeout_ack(numero_sequencia_base - 1, tempo_chegada, tempo, N)
+                    tempo_dict[numero_sequencia_base] = tempo_dict[numero_sequencia_base] - chegada_dict[numero_sequencia_base]                                          
                     
-                    atraso = tempo[numero_sequencia_base - 1] if numero_sequencia_base < N else tempo[N-1]                                        
+                    atraso = tempo_dict[numero_sequencia_base]                                       
                     est_rtt, dev_rtt = calcular_rtt(est_rtt, dev_rtt, atraso)
                     timeout = 4*dev_rtt + est_rtt
+                    
                     print(f"RTT estimado: {round(est_rtt,2)}, DevRTT: {round(dev_rtt,2)}, timeout: {round(timeout,2)}")
-                    #get_network_status(servidor_socket, endereco_cliente, len(packet), atraso)
-
-                elif i == numero_sequencia_base + N:                        
-                    tempo = timeout_ack(numero_sequencia_base, tempo_chegada, tempo, N)
-                    indice = numero_sequencia_base if numero_sequencia_base < N else N - 1
-                    timeout = 5 if timeout is None else timeout
-                    if tempo[indice] > timeout: #TODO verificar esse tempo 0.6s
-                        print("ACK", numero_sequencia_base, "não recebido a tempo.")                      
+                    del tempo_dict[numero_sequencia_base]
+                    del chegada_dict[numero_sequencia_base]
+                    numero_sequencia_base = int(resultado_ack) + 1
+                 
+                else:
+                    tempo_dict[numero_sequencia_base] = time()                                        
+                    tempo_dict[numero_sequencia_base] = tempo_dict[numero_sequencia_base] - chegada_dict[numero_sequencia_base]                     
+                    atraso = tempo_dict[numero_sequencia_base]                                       
+                                       
+                    timeout = 2 if timeout is None else timeout  
+                    if (resultado_ack not in ["ACK não recebido", "#eof", "nack"] and
+                        int(resultado_ack) == numero_sequencia_base-1 and ultimo_ack == int(resultado_ack)):
+                        ultimo_ack = int(resultado_ack)
                         tentativa_reenvio += 1
                         quantidade_pct_perdido += 1
-                        print(f"tentativa de reenvio: {tentativa_reenvio}")
-                        proximo_numero_sequencia =  numero_sequencia_base - 1
-                        #input("")
-                elif eof and resultado_ack != "ACK não recebido" and numero_sequencia_base != int(resultado_ack):
-                    eof = False                    
-                    proximo_numero_sequencia =  numero_sequencia_base - 1 if numero_sequencia_base > 0 else 0
+                        total_perdidos += (proximo_numero_sequencia - numero_sequencia_base)
+                        proximo_numero_sequencia =  ultimo_ack + 1
+                        numero_sequencia_base = proximo_numero_sequencia
                         
-                elif eof and numero_sequencia_base == proximo_numero_sequencia:    
-                                   
-                    break
+                        #est_rtt += 0.001
+                        eof = False
+                    
+                    elif tempo_dict[numero_sequencia_base] > timeout: #TODO verificar esse tempo 0.6s
+                        tentativa_reenvio += 1
+                        quantidade_pct_perdido += 1
+                        total_perdidos += (proximo_numero_sequencia - numero_sequencia_base)
+                        #timeout = timeout + 0.005                                             
+                        #est_rtt += 0.005
+                        N = 100
+                        proximo_numero_sequencia =  numero_sequencia_base          
+                        eof = False
+                
+                if eof and resultado_ack == "#eof":                                                      
+                    break              
             
-            packet.extend((0).to_bytes(4, byteorder='big'))  
-            packet.extend('eof'.encode())
-            servidor_socket.sendto(packet, endereco_cliente)
-            """
-            if tentativa_reenvio < 10:
-                print(f"Arquivo {nome_arquivo} enviado para {endereco_cliente}")
-            else:
-                print(f"Arquivo {nome_arquivo} não enviado para {endereco_cliente}, timeout de envio")
-            """   
             servidor_socket.setblocking(True)
-            print("QTD PCT ENVIADO:", quantidade_pct_enviado)
-            print("PERDIDO:", quantidade_pct_perdido)
+            print("Quantidade de pacotes enviados:", quantidade_pct_enviado)
+            print("Quantidade de pacotes perdidos:", total_perdidos)
+            print(f"Proporção: {round((total_perdidos/quantidade_pct_enviado)*100,2)}%")
+            
+            print("MD% HASH", md5_file)
+            servidor_socket.sendto(md5_file.encode(), endereco_cliente)
 
     except FileNotFoundError:
         print(f"Arquivo {nome_arquivo} não encontrado no servidor.")
