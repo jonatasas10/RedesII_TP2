@@ -15,6 +15,9 @@ HOST = os.environ.get("SERVER_HOST")
 PORTA_UDP = int(os.environ.get("UDP_PORT"))
 server_files_path = os.path.join(dir, os.environ.get("SERVER_FILES_PATH"))
 
+if __name__ == "__main__":
+    print("ARQUIVO UTILITÁRIO, EXECUTE O SERVIDOR.PY")
+
 def random_delay():
     random_delay = random.uniform(0.002, 0.03) #atraso entre 10ms - 50ms, ida e volta max 100ms
     sleep(random_delay)

@@ -12,7 +12,7 @@ from client_server_utils import enviar_arquivo, receber_arquivo, listar_arquivos
 
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path='/static')
 # Configurações do cliente
 dir = os.path.dirname(__file__)
 HOST = os.environ.get("SERVER_HOST")
