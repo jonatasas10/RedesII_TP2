@@ -47,7 +47,7 @@ def download():
         cliente_socket.sendto(operacao.encode(), (HOST, PORTA_UDP))
         cliente_socket.close()
         print(f'Arquivo {file_name} inexistente no servidor.')
-        return f'Arquivo {file_name} inexistente no servidor.'
+        return jsonify({'message': f'Arquivo {file_name} inexistente no servidor.'})
 
     operacao = f"download {file_name}"
     cliente_socket.sendto(operacao.encode(), (HOST, PORTA_UDP))
@@ -55,7 +55,7 @@ def download():
     receber_arquivo(cliente_socket, file_name)
 
     cliente_socket.close()
-    return f'Arquivo {file_name} recebido com sucesso.'
+    return jsonify({'message': f'Arquivo {file_name} recebido com sucesso.'})
 
 
 # Upload de arquivos
@@ -79,7 +79,7 @@ def upload():
         cliente_socket.sendto(operacao.encode(), (HOST, PORTA_UDP))
         cliente_socket.close()
         print(f'Arquivo {upload_file_name} inexistente no cliente.')
-        return f'Arquivo {upload_file_name} inexistente no cliente.'
+        return jsonify({'message': f'Arquivo {upload_file_name} inexistente no cliente.'})
 
     operacao = f"upload {upload_file_name}"
     cliente_socket.sendto(operacao.encode(), (HOST, PORTA_UDP))
@@ -87,7 +87,7 @@ def upload():
     enviar_arquivo(upload_file_name, (HOST, PORTA_UDP), cliente_socket)
 
     cliente_socket.close()
-    return f'Arquivo {upload_file_name} enviado com sucesso.'
+    return jsonify({'message': f'Arquivo {upload_file_name} enviado com sucesso.'})
 
 @app.route('/auth_page')
 def auth_page():

@@ -10,11 +10,13 @@
     <ul id="client_file_list"></ul>
 
     <h2>Subir arquivo</h2>
-    <form action="/upload" method="post">
+    <form id="upload_form" action="/upload" method="post">
         <label for="upload_file_name">File Name:</label>
         <input type="text" id="upload_file_name" name="upload_file_name">
         <button type="submit">Upload</button>
     </form>
+
+    <div id="message"></div>
 
     <script>
         fetch('/client_file_list')
@@ -27,6 +29,21 @@
                     fileList.appendChild(listItem);
                 });
             });
+
+        document.getElementById('upload_form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const formData = new FormData(this);
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                const messageDiv = document.getElementById('message');
+                messageDiv.textContent = data.message;
+            })
+            .catch(error => console.error('Error:', error));
+        });
     </script>
 </body>
 </html>
