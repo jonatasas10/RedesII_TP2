@@ -11,6 +11,7 @@ pip install -r requirements.txt
 
 - Para interagir com a interface, é necessário acessar o endereço http://127.0.0.1:5000/ no navegador após o cliente e servidor estiverem rodando
 
+- É necessário mudar o IP do host no arquivo .env, responsável pelas variáveis de ambiente
 
 ### Localização dos arquivos:
 - Os arquivos de cliente estão armazenados em *Arqs_Cliente*
