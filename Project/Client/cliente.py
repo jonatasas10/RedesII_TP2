@@ -40,7 +40,7 @@ def get_file_list():
 def download():
     file_name = request.form['file_name']
     cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
+    file_name = file_name[:50]
 
     if file_name not in arquivos_disponiveis:
         operacao = f"nofile  "
@@ -72,6 +72,7 @@ def get_client_file_list():
 def upload():
     upload_file_name = request.form['upload_file_name']
     cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    upload_file_name = upload_file_name[:50]
 
     if upload_file_name not in listar_arquivos():
         operacao = f"nofile  "
@@ -96,6 +97,9 @@ def auth_page():
 def auth():
     usuario = request.form['user']
     senha = request.form['password']
+
+    usuario = usuario[:50]
+    senha = senha[:50]
 
     cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
