@@ -6,10 +6,17 @@ from numpy import random
 import zlib
 load_dotenv()
 import hashlib
+import threading
+import traceback
+import queue
+import numpy as np
 # Configurações do cliente
 dir = os.path.dirname(__file__)
 HOST = os.environ.get("SERVER_HOST")
 PORTA_UDP = int(os.environ.get("UDP_PORT"))
+tamanho = 0
+tempo_pct= 0.01
+global_eof = False
 client_files_path = os.path.join(dir, os.environ.get("CLIENT_FILES_PATH"))
 
 def calcular_md5(arquivo):   
@@ -22,22 +29,45 @@ def calcular_md5(arquivo):
 def calcular_checksum(data):
     return zlib.crc32(data)
 
-def velocidade_download(tam_pacote, atraso):
-        #print(f"Conexão de {endereco_servidor}")                
-        download_speed = tam_pacote*8 / (atraso*10**6)
-        print(f"\nDelay de conexão: {round(atraso,2)} segundos")
-        print(f"Velocidade de download: {round(download_speed, 2)} Mbps\n")
+def velocidade_download(q):
+    eof = False
+    tempos = []
+    pcts = []
+    inicio = time.time()
+    while not eof:
+        # os.system("clear")
+        try:
+            tam_pacote, atraso, eof = q.get() 
+            tempos.append(atraso)
+            pcts.append(tam_pacote)
+
+        except: pass
+        if (time.time() - inicio) >= 1:
+            inicio = time.time()
+            tam_medio = np.mean(pcts)
+            atraso = np.mean(tempos)
+            pcts.clear()
+            tempos.clear()
+            download_speed = tam_medio*8 / (atraso*10**6)
+            #print(f"\nDelay de conexão: {round(atraso,2)} segundos")
+            print(f"Velocidade de download: {round(download_speed, 2)} Mbps\n")
+            
+              
 
 def receber_arquivo(udp_socket, nome_arquivo):
-    
+    global tamanho
+    global tempo_pct
+    global global_eof
     numero_sequencia_esperado = 0
     buffer = 1500
     tam_arquivo = 0
     tam_final_pacote = 0
     count = 0
-    eof = False
+    eof = False    
     with open(os.path.join(client_files_path, nome_arquivo), 'wb') as arquivo:
         tempo = time.time()
+        q = queue.Queue()
+        threading.Thread(target=velocidade_download, args=[q]).start()
         while True:
             try:
                 tempo_inicial = time.time()
@@ -51,30 +81,38 @@ def receber_arquivo(udp_socket, nome_arquivo):
                     eof = True  if sequence_number == numero_sequencia_esperado else eof
                     checkum = calcular_checksum(packet[12:])  
                 else:
-                    checkum = calcular_checksum(packet[8:])                                                                                               
-
+                    checkum = calcular_checksum(packet[8:])   
+                tempo_final = time.time()
+                tam_pacote = len(packet[8:]) if eof == False else len(packet[12:])
+                #tam_arquivo += tam_pacote
+                tam_final_pacote += len(packet) #para cálculo da vazão
+                atraso = tempo_final - tempo_inicial                                                                                            
+                q.put((tam_pacote, atraso, eof))
                 if sequence_number == numero_sequencia_esperado and checksum_recebido == checkum:
-                    print(f"recebido {sequence_number} {numero_sequencia_esperado}")
+                    #print(f"recebido {sequence_number} {numero_sequencia_esperado}")
                     arquivo.write(packet[8:]) if eof == False else arquivo.write(packet[12:])               
-                    tempo_final = time.time()
-                    tam_pacote = len(packet[8:]) if eof == False else len(packet[12:])
-                    tam_arquivo += tam_pacote
-                    tam_final_pacote += len(packet) #para cálculo da vazão
-                    atraso = tempo_final - tempo_inicial
-                    #velocidade_download(address, tam_pacote, atraso)
-
+                    #tempo_final = time.time()
+                    #tam_pacote = len(packet[8:]) if eof == False else len(packet[12:])
+                    #tam_arquivo += tam_pacote
+                    #tam_final_pacote += len(packet) #para cálculo da vazão
+                    #atraso = tempo_final - tempo_inicial
+                    #tamanho = tam_pacote
+                    #tempo_pct = atraso
+                    #velocidade_download(address, tam_pacote)
+                    #q.put((tam_pacote, atraso, eof))
                     #random_delay() # TODO: DELAY AQUI
                     if eof == False:
                         udp_socket.sendto(str(numero_sequencia_esperado).encode(), address)
                     else:                       
                         udp_socket.sendto("#eof".encode(), address)
+                        global_eof = eof
                         break
                    
                     numero_sequencia_esperado += 1 
                     
                     
                 else:                    
-                    print(f"Falha {sequence_number} != {numero_sequencia_esperado}")
+                    #print(f"Falha {sequence_number} != {numero_sequencia_esperado}")
                     udp_socket.sendto(f"{numero_sequencia_esperado-1}".encode(), address)
 
                
@@ -141,6 +179,8 @@ def main():
 
     except Exception as e:
         print(f"Erro: {e}")
+        
+        traceback.print_exception
     finally:
         cliente_socket.close()
 
@@ -174,6 +214,8 @@ def client():
 
     except Exception as e:
         print(f"Erro: {e}")
+        
+        traceback.print_exe()
     except KeyboardInterrupt:
         cliente_socket.sendto("sair".encode(), (HOST, PORTA_UDP))
     finally:
