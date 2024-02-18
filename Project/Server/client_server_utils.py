@@ -63,7 +63,7 @@ def receber_arquivo(udp_socket, nome_arquivo):
     tam_final_pacote = 0
     count = 0
     eof = False
-    with open(os.path.join(client_files_path, nome_arquivo), 'wb') as arquivo:
+    with open(os.path.join(server_files_path, nome_arquivo), 'wb') as arquivo:
         tempo = time()
         q = queue.Queue()
         threading.Thread(target=velocidade_download, args=[q]).start()

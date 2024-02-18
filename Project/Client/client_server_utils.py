@@ -205,7 +205,7 @@ def receber_ack(servidor_socket, resultado):
     for s in ler_socket:
         if s is servidor_socket:
             dados, _ = servidor_socket.recvfrom(100)
-            ACK = int(dados.decode('utf8'))
+            ACK = int(dados.decode('utf8')) if dados.isdigit() else dados.decode('utf8')
             print("ACK recebido", ACK)
             resultado.put(ACK)
 
@@ -220,8 +220,8 @@ def enviar_pacote(servidor_socket, endereco_cliente,packet, est_rtt):
 
 def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
     try:
-        with open(os.path.join(server_files_path, nome_arquivo), 'rb') as arquivo:
-            md5_file = calcular_md5(os.path.join(server_files_path, nome_arquivo))
+        with open(os.path.join(client_files_path, nome_arquivo), 'rb') as arquivo:
+            md5_file = calcular_md5(os.path.join(client_files_path, nome_arquivo))
             buffer = 1450
             numero_sequencia_base = 0
             proximo_numero_sequencia = 0
