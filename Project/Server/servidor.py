@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from numpy import random
 import zlib
 from time import sleep, time
-from client_server_utils import listar_arquivos, enviar_arquivo, receber_arquivo
+from client_server_utils import listar_arquivos, enviar_arquivo, receber_arquivo, calcular_md5
 
 load_dotenv()
 dir = os.path.dirname(__file__)
