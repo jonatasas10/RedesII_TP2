@@ -6,13 +6,13 @@ from numpy import random
 import zlib
 from flask import Flask, jsonify, redirect, request, render_template, url_for
 import threading
-from client_server_utils import enviar_arquivo, receber_arquivo
+from client_server_utils import enviar_arquivo, receber_arquivo, listar_arquivos
 
 
 
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path='/static')
 # Configurações do cliente
 dir = os.path.dirname(__file__)
 HOST = os.environ.get("SERVER_HOST")
@@ -25,6 +25,7 @@ def index():
 
 @app.route('/file_list', methods=['GET'])
 def get_file_list():
+    global arquivos_disponiveis
     cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     operacao = f"listar _"
@@ -32,7 +33,6 @@ def get_file_list():
     # Recebe a lista de arquivos do servidor
     arquivos_disponiveis = cliente_socket.recv(4096).decode().split("\n")
 
-    #cliente_socket.sendto("a".encode(), (HOST, PORTA_UDP))
     cliente_socket.close()
     return jsonify(arquivos_disponiveis)
 
@@ -40,18 +40,22 @@ def get_file_list():
 def download():
     file_name = request.form['file_name']
     cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    file_name = file_name[:50]
+
+    if file_name not in arquivos_disponiveis:
+        operacao = f"nofile  "
+        cliente_socket.sendto(operacao.encode(), (HOST, PORTA_UDP))
+        cliente_socket.close()
+        print(f'Arquivo {file_name} inexistente no servidor.')
+        return jsonify({'message': f'Arquivo {file_name} inexistente no servidor.'})
 
     operacao = f"download {file_name}"
     cliente_socket.sendto(operacao.encode(), (HOST, PORTA_UDP))
 
-    # Recebe a lista de arquivos do servidor
-    #arquivos_disponiveis = cliente_socket.recv(4096).decode().split("\n")
-    #cliente_socket.sendto(file_name.encode(), (HOST, PORTA_UDP))
-
     receber_arquivo(cliente_socket, file_name)
 
     cliente_socket.close()
-    return f'Arquivo {file_name} recebido com sucesso.'
+    return jsonify({'message': f'Arquivo {file_name} recebido com sucesso.'})
 
 
 # Upload de arquivos
@@ -68,15 +72,22 @@ def get_client_file_list():
 def upload():
     upload_file_name = request.form['upload_file_name']
     cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    upload_file_name = upload_file_name[:50]
+
+    if upload_file_name not in listar_arquivos():
+        operacao = f"nofile  "
+        cliente_socket.sendto(operacao.encode(), (HOST, PORTA_UDP))
+        cliente_socket.close()
+        print(f'Arquivo {upload_file_name} inexistente no cliente.')
+        return jsonify({'message': f'Arquivo {upload_file_name} inexistente no cliente.'})
 
     operacao = f"upload {upload_file_name}"
     cliente_socket.sendto(operacao.encode(), (HOST, PORTA_UDP))
 
-
     enviar_arquivo(upload_file_name, (HOST, PORTA_UDP), cliente_socket)
 
     cliente_socket.close()
-    return f'Arquivo {upload_file_name} enviado com sucesso.'
+    return jsonify({'message': f'Arquivo {upload_file_name} enviado com sucesso.'})
 
 @app.route('/auth_page')
 def auth_page():
@@ -86,6 +97,9 @@ def auth_page():
 def auth():
     usuario = request.form['user']
     senha = request.form['password']
+
+    usuario = usuario[:50]
+    senha = senha[:50]
 
     cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
