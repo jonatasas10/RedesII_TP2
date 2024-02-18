@@ -205,7 +205,7 @@ def receber_ack(servidor_socket, resultado):
     for s in ler_socket:
         if s is servidor_socket:
             dados, _ = servidor_socket.recvfrom(100)
-            ACK = int(dados.decode('utf8'))
+            ACK = int(dados.decode('utf8')) if dados.isdigit() else dados.decode('utf8')
             print("ACK recebido", ACK)
             resultado.put(ACK)
 
