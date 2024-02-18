@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" type = "text/css" href="static/styles.css">
     <title>Cliente</title>
 </head>
 <body>
@@ -10,15 +11,17 @@
     <ul id="file_list"></ul>
 
     <h2>Baixar arquivo</h2>
-    <form action="/download" method="post">
-        <label for="file_name">File Name:</label>
+    <form id="download_form" action="/download" method="post">
+        <label for="file_name">Nome do arquivo:</label>
         <input type="text" id="file_name" name="file_name">
         <button type="submit">Download</button>
     </form>
-
+    
     <form action="/auth_page" method="get">
         <button type="submit">Realizar Upload</button>
     </form>
+    
+    <div id="message"></div>
 
 
     <script>
@@ -32,6 +35,21 @@
                     fileList.appendChild(listItem);
                 });
             });
+        
+        document.getElementById('download_form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const formData = new FormData(this);
+            fetch('/download', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                const messageDiv = document.getElementById('message');
+                messageDiv.textContent = data.message;
+            })
+            .catch(error => console.error('Error:', error));
+        });
     </script>
  
 </body>

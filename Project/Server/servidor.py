@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from numpy import random
 import zlib
 from time import sleep, time
-from client_server_utils import listar_arquivos, enviar_arquivo, receber_arquivo
+from client_server_utils import listar_arquivos, enviar_arquivo, receber_arquivo, calcular_md5
 
 load_dotenv()
 dir = os.path.dirname(__file__)
@@ -38,7 +38,7 @@ def main():
 
                 elif funcao == "upload":
                     receber_arquivo(servidor_socket, nome_arquivo)
-                    pass
+                    
                 elif funcao == "auth":
                     usuario, senha = nome_arquivo.split("|")
                     #print(f"Autenticando usuario: {usuario}")
@@ -47,6 +47,9 @@ def main():
                         servidor_socket.sendto("ok".encode(), endereco_cliente)
                     else:
                         servidor_socket.sendto("fail".encode(), endereco_cliente)
+                        
+                elif funcao == "nofile":
+                    print(f"Arquivo {nome_arquivo} inexistente.")
                 else:
                     print("Função inválida.")
 
