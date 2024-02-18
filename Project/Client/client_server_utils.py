@@ -28,9 +28,6 @@ def calcular_md5(arquivo):
         md5_hash = hashlib.md5(arquivo_md5).hexdigest()
     return md5_hash
 
-def random_delay():
-    random_delay = random.uniform(0.002, 0.03) #atraso entre 10ms - 50ms, ida e volta max 100ms
-    sleep(random_delay)
 
 def calcular_checksum(data):
     return zlib.crc32(data)
@@ -59,9 +56,7 @@ def velocidade_download(q):
             print(f"Velocidade de download: {round(download_speed, 2)} Mbps\n")
 
 def receber_arquivo(udp_socket, nome_arquivo):
-    global tamanho
-    global tempo_pct
-    global global_eof
+   
     numero_sequencia_esperado = 0
     buffer = 1500
     tam_arquivo = 0
@@ -88,33 +83,23 @@ def receber_arquivo(udp_socket, nome_arquivo):
                     checkum = calcular_checksum(packet[8:])
                 tempo_final = time()
                 tam_pacote = len(packet[8:]) if eof == False else len(packet[12:])
-                #tam_arquivo += tam_pacote
-                tam_final_pacote += len(packet) #para cálculo da vazão
+                                
                 atraso = tempo_final - tempo_inicial
                 q.put((tam_pacote, atraso, eof))
                 if sequence_number == numero_sequencia_esperado and checksum_recebido == checkum:
                     #print(f"recebido {sequence_number} {numero_sequencia_esperado}")
                     arquivo.write(packet[8:]) if eof == False else arquivo.write(packet[12:])
-                    #tempo_final = time()
-                    tam_pacote = len(packet[8:]) if eof == False else len(packet[12:])
+                    
+                    #tam_pacote = len(packet[8:]) if eof == False else len(packet[12:])
                     tam_arquivo += tam_pacote
-                    #tam_final_pacote += len(packet) #para cálculo da vazão
-                    #atraso = tempo_final - tempo_inicial
-                    #tamanho = tam_pacote
-                    #tempo_pct = atraso
-                    #velocidade_download(address, tam_pacote)
-                    #q.put((tam_pacote, atraso, eof))
-                    #random_delay() # TODO: DELAY AQUI
+                    tam_final_pacote += len(packet) #para cálculo da vazão
+                    
                     if eof == False:
                         udp_socket.sendto(str(numero_sequencia_esperado).encode(), address)
                     else:
-                        udp_socket.sendto("#eof".encode(), address)
-                        global_eof = eof
+                        udp_socket.sendto("#eof".encode(), address)                       
                         break
-
                     numero_sequencia_esperado += 1
-
-
                 else:
                     #print(f"Falha {sequence_number} != {numero_sequencia_esperado}")
                     udp_socket.sendto(f"{numero_sequencia_esperado-1}".encode(), address)
@@ -156,7 +141,7 @@ def receber_arquivo(udp_socket, nome_arquivo):
         print("Os hashes dos arquivos são diferentes.\n")
 
     #udp_socket.close()
-
+        
 # Função para lidar com as mensagens do servidor
 def lidar_com_mensagens(cliente_socket):
     try:
@@ -166,12 +151,6 @@ def lidar_com_mensagens(cliente_socket):
     except ConnectionResetError:
         print("Conexão com o servidor foi encerrada.")
 
-def random_delay(media):
-
-    media = 0.001 if media < 0.00001 else media
-    print(media)
-    random_delay = random.uniform(0.01, media)
-    sleep(random_delay)
 
 def calcular_rtt(est_rtt, dev_rtt, amostra):
     alpha = 0.125
@@ -206,17 +185,45 @@ def receber_ack(servidor_socket, resultado):
         if s is servidor_socket:
             dados, _ = servidor_socket.recvfrom(100)
             ACK = int(dados.decode('utf8')) if dados.isdigit() else dados.decode('utf8')
-            print("ACK recebido", ACK)
+            #print("ACK recebido", ACK)
             resultado.put(ACK)
 
     resultado.put("ACK não recebido")
 
-def enviar_pacote(servidor_socket, endereco_cliente,packet, est_rtt):
+def enviar_pacote(servidor_socket, endereco_cliente,packet, est_rtt, eof, q):
+    inicio = time()
+    
     if est_rtt is None:
         sleep(0.001)
     else:
-        sleep(est_rtt*0.9)
+        sleep(est_rtt)
     servidor_socket.sendto(packet, endereco_cliente)
+    atraso = time() - inicio
+    q.put((len(packet), atraso, eof))
+
+def visualizar_rtt(q):
+    eof = False    
+    inicio = time()
+    rtt = []
+    dev = []
+    timeout_med = []
+    while not eof:        
+        try:
+            est_rtt, dev_rtt, timeout, ultimo_ack, eof = q.get()
+            rtt.append(est_rtt)
+            dev.append(dev_rtt)
+            timeout_med.append(timeout)            
+        except: pass
+
+        if (time() - inicio) >= 1:
+            inicio = time()
+            est_rtt = np.mean(rtt)
+            dev_rtt = np.mean(dev)
+            timeout = np.mean(timeout_med)            
+            print(f"RTT estimado: {round(est_rtt,2)}, DevRTT: {round(dev_rtt,2)}, timeout: {round(timeout,2)}, ultimo ACK: {ultimo_ack}\n")
+            rtt.clear()
+            dev.clear()
+            timeout_med.clear()
 
 def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
     try:
@@ -227,7 +234,6 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
             proximo_numero_sequencia = 0
             arquivo.seek(numero_sequencia_base)
             N = 10
-
             tentativa_reenvio = 0
             est_rtt = None
             dev_rtt = None
@@ -238,13 +244,15 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
             tempo_dict = {}
             chegada_dict = {}
             total_perdidos = 0
-
             ultimo_ack = None
+            q = queue.Queue()
+            threading.Thread(target=visualizar_rtt, args=[q]).start()
+            threading.Thread(target=velocidade_download, args=[q]).start()
             while True:
 
                 i = proximo_numero_sequencia
                 if (proximo_numero_sequencia < numero_sequencia_base + N) and eof is False:
-
+                    
                     arquivo.seek(i * buffer)  # Move o ponteiro do arquivo para o byte correspondente
                     packet = bytearray()
                     packet.extend(i.to_bytes(4, byteorder='big'))
@@ -257,9 +265,10 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
                     packet.extend(dados)
                     chegada_dict[i] = time()
 
-                    threading.Thread(target=enviar_pacote, args=[servidor_socket, endereco_cliente, packet, est_rtt]).start()
+                    threading.Thread(target=enviar_pacote, args=[servidor_socket, endereco_cliente, packet, est_rtt, eof,q]).start()
+                    
                     quantidade_pct_enviado += 1
-                    proximo_numero_sequencia = proximo_numero_sequencia + 1 #if len(dados) == 1450 else proximo_numero_sequencia
+                    proximo_numero_sequencia = proximo_numero_sequencia + 1 
 
                 resultado = queue.Queue()
                 threading.Thread(target=receber_ack, args=[servidor_socket, resultado]).start()
@@ -275,8 +284,8 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
                     atraso = tempo_dict[numero_sequencia_base]
                     est_rtt, dev_rtt = calcular_rtt(est_rtt, dev_rtt, atraso)
                     timeout = 4*dev_rtt + est_rtt
-
-                    print(f"RTT estimado: {round(est_rtt,2)}, DevRTT: {round(dev_rtt,2)}, timeout: {round(timeout,2)}")
+                    q.put((est_rtt, dev_rtt, timeout,numero_sequencia_base, eof))
+                    
                     del tempo_dict[numero_sequencia_base]
                     del chegada_dict[numero_sequencia_base]
                     numero_sequencia_base = int(resultado_ack) + 1
@@ -295,16 +304,13 @@ def enviar_arquivo(nome_arquivo, endereco_cliente, servidor_socket):
                         total_perdidos += (proximo_numero_sequencia - numero_sequencia_base)
                         proximo_numero_sequencia =  ultimo_ack + 1
                         numero_sequencia_base = proximo_numero_sequencia
-
-                        #est_rtt += 0.001
                         eof = False
 
                     elif tempo_dict[numero_sequencia_base] > timeout: #TODO verificar esse tempo 0.6s
                         tentativa_reenvio += 1
                         quantidade_pct_perdido += 1
                         total_perdidos += (proximo_numero_sequencia - numero_sequencia_base)
-                        #timeout = timeout + 0.005
-                        #est_rtt += 0.005
+                        
                         N = N // 2
                         proximo_numero_sequencia =  numero_sequencia_base
                         eof = False
